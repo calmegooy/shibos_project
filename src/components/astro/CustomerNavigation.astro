@@ -1,0 +1,86 @@
+---
+import { MASCOT_LOGO_URL, formatRupiah } from '../../data/menuData';
+const currentPath = Astro.url.pathname.replace(/\/+$/, '') || '/';
+const searchQuery = Astro.url.searchParams.get('q') ?? '';
+const navItems = [
+  { label: 'Beranda', href: '/' },
+  { label: 'Menu', href: '/menu' },
+  { label: 'Keranjang', href: '/cart' },
+  { label: 'Pesanan', href: '/order' },
+];
+---
+
+<header class="fixed top-[38px] left-0 w-full z-50 bg-white border-b border-[#D0E2FF] shadow-sm">
+  <div class="h-20 w-full px-4 md:px-6 max-w-7xl mx-auto flex items-center justify-between gap-3">
+    <a href="/" class="flex items-center gap-3 shrink-0 text-left hover:opacity-90" aria-label="Kedai Susu Segar Shi Boss - Beranda">
+      <img alt="Shi Boss Mascot Logo" class="h-8 md:h-9 w-auto object-contain" src={MASCOT_LOGO_URL} />
+      <span class="flex flex-col">
+        <span class="font-bold text-[#003d9b] text-base md:text-lg leading-tight tracking-tight">Kedai Susu Segar Shi Boss</span>
+        <span class="text-[10px] md:text-xs text-[#bb0016] tracking-wide uppercase font-bold">Susu Segar, Rasa Juara!</span>
+      </span>
+    </a>
+    <nav aria-label="Navigasi pelanggan" class="hidden lg:flex items-center gap-1 bg-[#f3f2ff] p-1 rounded-full border border-[#dce1ff]">
+      {navItems.map((item) => {
+        const active = currentPath === item.href;
+        return <a href={item.href} aria-current={active ? 'page' : undefined} class:list={["px-4 py-1.5 rounded-full transition-colors font-semibold text-sm", active ? "bg-[#003d9b] text-white shadow-sm" : "text-[#434654] hover:bg-[#ebedff] hover:text-[#071747]"]}>{item.label}</a>;
+      })}
+    </nav>
+    <div class="flex items-center gap-2 md:gap-3">
+      <form action="/menu" method="get" class="hidden sm:flex items-center bg-[#f3f2ff] border border-[#c3c6d6] rounded-full px-3 py-1.5 w-40 xl:w-60 focus-within:border-[#003d9b] focus-within:bg-white">
+        <span class="material-symbols-outlined text-[#737685] text-[18px] mr-1.5" aria-hidden="true">search</span>
+        <input type="search" name="q" value={searchQuery} placeholder="Cari menu favoritmu..." aria-label="Cari menu" class="bg-transparent border-none outline-none text-xs text-[#071747] placeholder:text-[#737685] w-full" />
+      </form>
+      <a href="/cart" class="flex items-center gap-1.5 bg-[#bb0016] hover:bg-[#e32128] text-white px-3 md:px-4 py-1.5 rounded-full shrink-0" aria-label="Buka Keranjang">
+        <span class="material-symbols-outlined text-[20px]" aria-hidden="true">shopping_bag</span>
+        <span class="text-[10px] font-bold bg-white text-[#bb0016] min-w-4 h-4 rounded-full flex items-center justify-center" data-cart-count>0</span>
+        <span class="text-xs md:text-sm font-bold hidden sm:inline ml-1" data-cart-total>{formatRupiah(0)}</span>
+      </a>
+      <button type="button" data-open-table-modal class="hidden md:inline-flex items-center gap-1 rounded-full border border-[#dce1ff] bg-[#f3f2ff] px-3 py-2 text-xs font-bold text-[#003d9b]" aria-label="Ubah nomor meja">
+        <span class="material-symbols-outlined text-sm" aria-hidden="true">table_restaurant</span>
+        Meja <span data-table-number>08</span>
+      </button>
+    </div>
+  </div>
+  <nav aria-label="Navigasi pelanggan mobile" class="lg:hidden flex items-center justify-between gap-2 border-t border-[#ebedff] px-3 py-1.5 bg-[#f3f2ff]/80">
+    <div class="flex min-w-0 items-center gap-1 overflow-x-auto">
+      {navItems.map((item) => {
+        const active = currentPath === item.href;
+        return <a href={item.href} aria-current={active ? 'page' : undefined} class:list={["px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap", active ? "bg-[#003d9b] text-white" : "text-[#434654] hover:bg-[#ebedff]"]}>{item.label === 'Keranjang' ? <>Keranjang (<span data-mobile-cart-count>0</span>)</> : item.label}</a>;
+      })}
+    </div>
+    <button type="button" data-open-table-modal class="inline-flex items-center gap-1 rounded-full border border-[#0052cc] bg-white px-2.5 py-1 text-[11px] font-bold text-[#003d9b]" aria-label="Ubah nomor meja">
+      <span class="material-symbols-outlined text-[14px]" aria-hidden="true">table_restaurant</span>
+      <span>#<span data-mobile-table-number>08</span></span>
+    </button>
+  </nav>
+</header>
+
+<script>
+  const key = 'shiboss:app-state';
+  const updateCartSummary = () => {
+    const countNode = document.querySelector<HTMLElement>('[data-cart-count]');
+    const mobileCountNode = document.querySelector<HTMLElement>('[data-mobile-cart-count]');
+    const totalNode = document.querySelector<HTMLElement>('[data-cart-total]');
+    try {
+      const state = JSON.parse(sessionStorage.getItem(key) ?? '{}');
+      const items = Array.isArray(state.customer?.cartItems) ? state.customer.cartItems : [];
+      const count = items.reduce((sum: number, item: { quantity?: number }) => sum + (Number(item.quantity) || 0), 0);
+      const total = items.reduce((sum: number, item: { quantity?: number; unitPrice?: number }) => sum + (Number(item.quantity) || 0) * (Number(item.unitPrice) || 0), 0);
+      if (countNode) countNode.textContent = String(count);
+      if (mobileCountNode) mobileCountNode.textContent = String(count);
+      if (totalNode) totalNode.textContent = new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(total);
+      const tableNumber = String(state.customer?.tableNumber ?? '08');
+      document.querySelectorAll<HTMLElement>('[data-table-number], [data-mobile-table-number]').forEach((node) => { node.textContent = tableNumber; });
+    } catch {
+      if (countNode) countNode.textContent = '0';
+      if (mobileCountNode) mobileCountNode.textContent = '0';
+      if (totalNode) totalNode.textContent = 'Rp0';
+    }
+  };
+  updateCartSummary();
+  window.addEventListener('shiboss:session-state', updateCartSummary);
+  document.addEventListener('astro:page-load', updateCartSummary);
+  document.querySelectorAll<HTMLButtonElement>('[data-open-table-modal]').forEach((button) => {
+    button.addEventListener('click', () => window.dispatchEvent(new Event('shiboss:open-table-modal')));
+  });
+</script>

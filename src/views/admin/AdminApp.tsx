@@ -1,18 +1,24 @@
-import React from 'react';
+import React, { lazy, Suspense } from 'react';
 import { useAdmin } from '../../context/AdminContext';
-import { AdminSidebar } from '../../components/admin/AdminSidebar';
 import { AdminHeader } from '../../components/admin/AdminHeader';
 import { LoginView } from './LoginView';
-import { DashboardView } from './DashboardView';
-import { MenuManagementView } from './MenuManagementView';
 import { AddEditMenuModal } from './AddEditMenuModal';
-import { OrderManagementView } from './OrderManagementView';
-import { QrisVerificationView } from './QrisVerificationView';
-import { StateShowcaseView } from './StateShowcaseView';
 import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
+
+const DashboardView = lazy(() => import('./DashboardView').then((module) => ({ default: module.DashboardView })));
+const MenuManagementView = lazy(() => import('./MenuManagementView').then((module) => ({ default: module.MenuManagementView })));
+const OrderManagementView = lazy(() => import('./OrderManagementView').then((module) => ({ default: module.OrderManagementView })));
+const QrisVerificationView = lazy(() => import('./QrisVerificationView').then((module) => ({ default: module.QrisVerificationView })));
+const StateShowcaseView = lazy(() => import('./StateShowcaseView').then((module) => ({ default: module.StateShowcaseView })));
 
 export const AdminApp: React.FC = () => {
   const { currentScreen, isAuthenticated, adminToast, hideToast } = useAdmin();
+  const activeScreen = currentScreen === 'dashboard' ? <DashboardView />
+    : currentScreen === 'menu' ? <MenuManagementView />
+    : currentScreen === 'orders' ? <OrderManagementView />
+    : currentScreen === 'qris' ? <QrisVerificationView />
+    : currentScreen === 'states' ? <StateShowcaseView />
+    : null;
 
   // If on login screen or not authenticated, render LoginView
   if (currentScreen === 'login' || !isAuthenticated) {
@@ -54,21 +60,16 @@ export const AdminApp: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-cream-canvas text-heading-charcoal flex font-sans selection:bg-[#dae2ff] selection:text-[#001848]">
-      {/* Desktop Persistent Sidebar / Mobile Drawer */}
-      <AdminSidebar />
-
-      {/* Main Content Area (offset by 256px on lg screens) */}
-      <div className="flex-1 flex flex-col min-w-0 lg:pl-64">
+      {/* Main content and interactive account controls; Astro owns admin navigation. */}
+      <div className="flex min-h-screen flex-1 flex-col min-w-0">
         {/* Header Bar */}
         <AdminHeader />
 
         {/* Dynamic Screen Viewport */}
         <main className="flex-1 p-4 sm:p-6 max-w-7xl w-full mx-auto">
-          {currentScreen === 'dashboard' && <DashboardView />}
-          {currentScreen === 'menu' && <MenuManagementView />}
-          {currentScreen === 'orders' && <OrderManagementView />}
-          {currentScreen === 'qris' && <QrisVerificationView />}
-          {currentScreen === 'states' && <StateShowcaseView />}
+          <Suspense fallback={<div className="py-12 text-sm text-slate-500">Memuat dashboard...</div>}>
+            {activeScreen}
+          </Suspense>
         </main>
       </div>
 

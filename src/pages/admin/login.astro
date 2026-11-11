@@ -1,0 +1,8 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { AdminRouteIsland } from '../../islands/AdminRouteIsland';
+---
+
+<AdminLayout title="Login Admin - Shiboss">
+  <AdminRouteIsland client:only="react" screen="login" />
+</AdminLayout>

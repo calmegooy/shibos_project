@@ -16,11 +16,6 @@ app.get('/healthz', (_req, res) => {
   res.status(200).send('OK');
 });
 
-// SPA fallback: return index.html for all frontend routes
-app.get('*', (_req, res) => {
-  res.sendFile(path.join(__dirname, 'dist', 'index.html'));
-});
-
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Shiboss server running on port ${PORT}`);
 });

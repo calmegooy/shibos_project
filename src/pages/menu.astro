@@ -1,0 +1,9 @@
+---
+import CustomerLayout from '../layouts/CustomerLayout.astro';
+import { CustomerRouteIsland } from '../islands/CustomerRouteIsland';
+const searchQuery = Astro.url.searchParams.get('q') ?? '';
+---
+
+<CustomerLayout title="Menu - Kedai Susu Segar Shi Boss">
+  <CustomerRouteIsland client:only="react" view="menu" searchQuery={searchQuery} />
+</CustomerLayout>

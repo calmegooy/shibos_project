@@ -1,25 +1,8 @@
 ---
-import App from '../App';
-import '../index.css';
+import CustomerLayout from '../layouts/CustomerLayout.astro';
+import { CustomerRouteIsland } from '../islands/CustomerRouteIsland';
 ---
 
-<!doctype html>
-<html lang="id">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Shiboss Admin Dashboard - Kedai Susu Segar</title>
-    <meta name="description" content="Dashboard administrasi terintegrasi Kedai Susu Segar Shiboss untuk manajemen katalog 91 menu, alur pesanan dine-in, dan verifikasi manual pembayaran QRIS." />
-    <meta property="og:title" content="Shiboss Admin Dashboard - Kedai Susu Segar" />
-    <meta property="og:description" content="Dashboard administrasi terintegrasi Kedai Susu Segar Shiboss untuk manajemen katalog 91 menu, alur pesanan dine-in, dan verifikasi manual pembayaran QRIS." />
-    <meta property="og:type" content="website" />
-    <meta name="twitter:card" content="summary_large_image" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet" />
-    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
-  </head>
-  <body class="bg-cream-canvas text-heading-charcoal antialiased">
-    <App client:load />
-  </body>
-</html>
+<CustomerLayout title="Pemesanan - Kedai Susu Segar Shi Boss">
+  <CustomerRouteIsland client:only="react" view="beranda" />
+</CustomerLayout>

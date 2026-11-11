@@ -1,5 +1,7 @@
 # Astro Migration with React Behavior Preserved
 
+> Historical first-migration contract. The Astro-routes/React-islands direction selected on 2026-11-11 supersedes this document for the next migration phase; see `2026-11-11-astro-routes-react-islands-design.md`.
+
 ## Intent
 
 Move the Shiboss project from a Vite React entry point to Astro without redesigning the product or rewriting its customer and admin workflows. The goal is a safe framework migration with a restrained anti-slop visual polish based on the supplied design reference.

@@ -1,6 +1,6 @@
 # Shiboss
 
-Shiboss is a dine-in ordering experience and operations dashboard for Kedai Susu Segar Shi Boss. Astro builds the page shell; the existing customer and admin application remains one client-hydrated React app so its shared context and interactions stay together.
+Shiboss is a dine-in ordering experience and operations dashboard for Kedai Susu Segar Shi Boss. Astro owns the page routes, shared layouts, and navigation. Existing interactive customer and admin screens run as focused React islands, with screen modules loaded per route.
 
 ## Requirements
 
@@ -24,6 +24,12 @@ npm start
 ```
 
 Astro writes the static site to `dist/`. The existing Express server serves that directory, listens on `PORT` (default `3000`), and exposes `/healthz` for the deployment health check.
+
+Customer routes: `/`, `/menu`, `/cart`, `/checkout`, `/payment`, `/order`.
+
+Admin routes: `/admin`, `/admin/menu`, `/admin/orders`, `/admin/qris`, `/admin/states`, `/admin/login`.
+
+In-progress demo data is kept in `sessionStorage` for the current browser tab so it survives Astro page navigation and refresh. Closing the tab clears that session. This is not backend or cross-device persistence.
 
 For Astro's local static preview instead of Express:
 

@@ -1,0 +1,8 @@
+---
+import CustomerLayout from '../layouts/CustomerLayout.astro';
+import { CustomerRouteIsland } from '../islands/CustomerRouteIsland';
+---
+
+<CustomerLayout title="Status Pesanan - Kedai Susu Segar Shi Boss">
+  <CustomerRouteIsland client:only="react" view="pesanan" />
+</CustomerLayout>

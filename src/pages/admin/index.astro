@@ -1,0 +1,8 @@
+---
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import { AdminRouteIsland } from '../../islands/AdminRouteIsland';
+---
+
+<AdminLayout>
+  <AdminRouteIsland client:only="react" screen="dashboard" />
+</AdminLayout>

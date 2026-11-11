@@ -1,0 +1,18 @@
+---
+import BaseLayout from './BaseLayout.astro';
+import AdminNavigation from '../components/astro/AdminNavigation.astro';
+const { title = 'Dashboard Admin Shiboss', description = 'Dashboard administrasi Kedai Susu Segar Shi Boss.' } = Astro.props;
+---
+
+<BaseLayout title={title} description={description}>
+  <div class="min-h-screen bg-cream-canvas text-heading-charcoal font-sans">
+    <aside class="fixed inset-y-0 left-0 z-40 hidden w-64 border-r border-[#e5d5c3] bg-white lg:flex lg:flex-col">
+      <a href="/admin" class="px-5 py-6 text-lg font-bold text-[#003d9b]">SHIBOSS <span class="block text-xs font-medium text-slate-500">Admin Dashboard</span></a>
+      <AdminNavigation />
+    </aside>
+    <div class="lg:pl-64">
+      <AdminNavigation mobile />
+      <slot />
+    </div>
+  </div>
+</BaseLayout>

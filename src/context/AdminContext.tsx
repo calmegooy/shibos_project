@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useMemo } from 'react';
+import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
 import {
   AdminScreen,
   AdminUser,
@@ -16,6 +16,7 @@ import {
   INITIAL_QRIS_TRANSACTIONS,
   INITIAL_ACTIVITY_LOGS,
 } from '../data/mockAdminData';
+import { readSessionState, writeSessionState } from '../lib/sessionState';
 
 export interface AdminToast {
   id: string;
@@ -97,8 +98,13 @@ interface AdminContextType {
 
 const AdminContext = createContext<AdminContextType | undefined>(undefined);
 
-export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentScreen, setCurrentScreen] = useState<AdminScreen>('dashboard');
+interface AdminProviderProps {
+  children: React.ReactNode;
+  initialScreen?: AdminScreen;
+}
+
+export const AdminProvider: React.FC<AdminProviderProps> = ({ children, initialScreen = 'dashboard' }) => {
+  const [currentScreen, setCurrentScreen] = useState<AdminScreen>(initialScreen);
   const [viewMode, setViewMode] = useState<'admin' | 'customer'>('admin');
   const [isSidebarOpenMobile, setIsSidebarOpenMobile] = useState(false);
 
@@ -154,6 +160,66 @@ export const AdminProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   // Toast
   const [adminToast, setAdminToast] = useState<AdminToast | null>(null);
+  const [sessionRestored, setSessionRestored] = useState(false);
+
+  useEffect(() => {
+    const snapshot = typeof window === 'undefined' ? null : readSessionState(window.sessionStorage)?.admin;
+    if (snapshot) {
+      if (typeof snapshot.isAuthenticated === 'boolean') setIsAuthenticated(snapshot.isAuthenticated);
+      if (snapshot.currentUser && typeof snapshot.currentUser === 'object') {
+        setCurrentUser(snapshot.currentUser as AdminUser);
+      }
+      if (Array.isArray(snapshot.menuItems)) setMenuItems(snapshot.menuItems as AdminMenuItem[]);
+      if (Array.isArray(snapshot.orders)) setOrders(snapshot.orders as AdminOrder[]);
+      if (snapshot.selectedOrder === null || (typeof snapshot.selectedOrder === 'object' && snapshot.selectedOrder !== null)) {
+        setSelectedOrder(snapshot.selectedOrder as AdminOrder | null);
+      }
+      if (Array.isArray(snapshot.qrisTransactions)) setQrisTransactions(snapshot.qrisTransactions as QrisTransaction[]);
+      if (Array.isArray(snapshot.activityLogs)) setActivityLogs(snapshot.activityLogs as ActivityLog[]);
+      if (Array.isArray(snapshot.notifications)) {
+        setNotifications(snapshot.notifications as typeof notifications);
+      }
+      if (typeof snapshot.simulateLoading === 'boolean') setSimulateLoading(snapshot.simulateLoading);
+      if (typeof snapshot.simulateError === 'boolean') setSimulateError(snapshot.simulateError);
+      if (typeof snapshot.simulateEmptyOrders === 'boolean') setSimulateEmptyOrders(snapshot.simulateEmptyOrders);
+      if (typeof snapshot.simulateEmptyQris === 'boolean') setSimulateEmptyQris(snapshot.simulateEmptyQris);
+    }
+    setSessionRestored(true);
+  }, []);
+
+  useEffect(() => {
+    if (!sessionRestored || typeof window === 'undefined') return;
+    writeSessionState(window.sessionStorage, {
+      admin: {
+        isAuthenticated,
+        currentUser,
+        menuItems,
+        orders,
+        selectedOrder,
+        qrisTransactions,
+        activityLogs,
+        notifications,
+        simulateLoading,
+        simulateError,
+        simulateEmptyOrders,
+        simulateEmptyQris,
+      },
+    });
+  }, [
+    sessionRestored,
+    isAuthenticated,
+    currentUser,
+    menuItems,
+    orders,
+    selectedOrder,
+    qrisTransactions,
+    activityLogs,
+    notifications,
+    simulateLoading,
+    simulateError,
+    simulateEmptyOrders,
+    simulateEmptyQris,
+  ]);
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
     setAdminToast({ id: Date.now().toString(), message, type });

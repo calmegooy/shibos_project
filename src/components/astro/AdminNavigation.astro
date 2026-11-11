@@ -1,0 +1,29 @@
+---
+interface Props { mobile?: boolean }
+const { mobile = false } = Astro.props;
+const currentPath = Astro.url.pathname.replace(/\/+$/, '') || '/admin';
+const navItems = [
+  { label: 'Dashboard', href: '/admin' },
+  { label: 'Manajemen Menu', href: '/admin/menu' },
+  { label: 'Pesanan', href: '/admin/orders' },
+  { label: 'Verifikasi QRIS', href: '/admin/qris' },
+  { label: 'Showcase State', href: '/admin/states' },
+];
+---
+
+{mobile ? (
+  <nav aria-label="Navigasi admin mobile" class="sticky top-0 z-40 flex gap-2 overflow-x-auto border-b border-slate-200 bg-white p-3 lg:hidden">
+    {navItems.map((item) => <a href={item.href} aria-current={currentPath === item.href ? 'page' : undefined} class="shrink-0 rounded-full border border-slate-200 px-3 py-1.5 text-xs font-semibold">{item.label}</a>)}
+    <a href="/" class="shrink-0 rounded-full bg-[#003d9b] px-3 py-1.5 text-xs font-semibold text-white">Web Pelanggan</a>
+  </nav>
+) : (
+  <>
+    <nav aria-label="Navigasi admin" class="flex flex-col gap-1 px-3">
+      {navItems.map((item) => {
+        const active = currentPath === item.href;
+        return <a href={item.href} aria-current={active ? 'page' : undefined} class:list={["rounded-lg px-3 py-2.5 text-sm font-semibold", active ? "bg-[#003d9b] text-white" : "text-slate-600 hover:bg-slate-100"]}>{item.label}</a>;
+      })}
+    </nav>
+    <a href="/" class="mt-auto border-t border-slate-200 px-5 py-4 text-sm font-semibold text-[#003d9b]">Buka Web Pesanan Pelanggan</a>
+  </>
+)}

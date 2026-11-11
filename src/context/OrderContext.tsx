@@ -1,6 +1,7 @@
-import React, { createContext, useContext, useState, useMemo } from 'react';
+import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
 import { MenuItem, CartItem, ItemModifier, ActiveOrder } from '../types';
 import { INITIAL_CART_ITEMS } from '../data/menuData';
+import { readSessionState, writeSessionState } from '../lib/sessionState';
 
 export type ViewType = 'beranda' | 'menu' | 'keranjang' | 'checkout' | 'pembayaran' | 'pesanan';
 
@@ -44,8 +45,18 @@ interface OrderContextType {
 
 const OrderContext = createContext<OrderContextType | undefined>(undefined);
 
-export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentView, setCurrentView] = useState<ViewType>('beranda');
+interface OrderProviderProps {
+  children: React.ReactNode;
+  initialView?: ViewType;
+  initialSearchQuery?: string;
+}
+
+export const OrderProvider: React.FC<OrderProviderProps> = ({
+  children,
+  initialView = 'beranda',
+  initialSearchQuery = '',
+}) => {
+  const [currentView, setCurrentView] = useState<ViewType>(initialView);
   const [tableNumber, setTableNumber] = useState('08');
   const [customerName, setCustomerName] = useState('');
   const [kitchenNotes, setKitchenNotes] = useState('Es sedang, gula normal untuk seluruh gelas susu.');
@@ -55,7 +66,25 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [isTableModalOpen, setIsTableModalOpen] = useState(false);
   const [isWaiterModalOpen, setIsWaiterModalOpen] = useState(false);
   const [customizeModalItem, setCustomizeModalItem] = useState<MenuItem | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
+  const [sessionRestored, setSessionRestored] = useState(false);
+
+  useEffect(() => {
+    const snapshot = typeof window === 'undefined' ? null : readSessionState(window.sessionStorage)?.customer;
+    if (snapshot) {
+      if (typeof snapshot.tableNumber === 'string') setTableNumber(snapshot.tableNumber);
+      if (typeof snapshot.customerName === 'string') setCustomerName(snapshot.customerName);
+      if (typeof snapshot.kitchenNotes === 'string') setKitchenNotes(snapshot.kitchenNotes);
+      if (Array.isArray(snapshot.cartItems)) setCartItems(snapshot.cartItems as CartItem[]);
+      if (snapshot.paymentMethod === 'qris' || snapshot.paymentMethod === 'cash') {
+        setPaymentMethod(snapshot.paymentMethod);
+      }
+      if (snapshot.activeOrder === null || (typeof snapshot.activeOrder === 'object' && snapshot.activeOrder !== null)) {
+        setActiveOrder(snapshot.activeOrder as ActiveOrder | null);
+      }
+    }
+    setSessionRestored(true);
+  }, []);
 
   // Active placed order
   const [activeOrder, setActiveOrder] = useState<ActiveOrder | null>({
@@ -73,6 +102,13 @@ export const OrderProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     createdAt: 'Hari Ini, 14:15 WIB',
     kitchenNotes: 'Es sedang, gula normal untuk seluruh gelas susu.',
   });
+
+  useEffect(() => {
+    if (!sessionRestored || typeof window === 'undefined') return;
+    writeSessionState(window.sessionStorage, {
+      customer: { tableNumber, customerName, kitchenNotes, cartItems, paymentMethod, activeOrder, searchQuery },
+    });
+  }, [sessionRestored, tableNumber, customerName, kitchenNotes, cartItems, paymentMethod, activeOrder, searchQuery]);
 
   const cartTotal = useMemo(() => {
     return cartItems.reduce((acc, curr) => acc + curr.unitPrice * curr.quantity, 0);
