@@ -1,0 +1,8 @@
+{
+  "name": "Remix Kedai Susu Segar Shi Boss",
+  "description": "Aplikasi pemesanan santap di tempat (dine-in) Kedai Susu Segar Shi Boss. Nikmati susu sapi segar murni aneka rasa, camilan renyah, dan makanan hangat langsung di meja santap Anda.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

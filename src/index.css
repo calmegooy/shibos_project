@@ -1,0 +1,67 @@
+@import "tailwindcss";
+
+@theme {
+  --color-cream-canvas: #fbfaf9;
+  --color-stone-surface: #f2f0ed;
+  --color-ink-black: #121212;
+  --color-heading-charcoal: #343433;
+  --color-body-brown: #474645;
+  --color-muted-gray: #7e7e7d;
+  --color-stone-border: #e5d5c3;
+  --color-link-blue: #0086fc;
+  --color-sky-blue: #64c6ff;
+  --color-grass-green: #00c978;
+  --color-ember-orange: #ff3e00;
+  --color-sun-yellow: #ffcd6c;
+  --color-honey: #ffbb26;
+  --color-coral-pink: #ff58ae;
+  --color-plum-violet: #9f4fff;
+  --color-alert-red: #ff2b3a;
+
+  --spacing-space-xl: 1.5rem;
+  --spacing-gutter-sm: 0.75rem;
+  --spacing-margin-md: 1.5rem;
+  --spacing-space-xs: 0.25rem;
+  --spacing-space-lg: 1rem;
+  --spacing-space-sm: 0.5rem;
+  --spacing-space-md: 0.75rem;
+  --spacing-gutter: 1rem;
+  --spacing-margin: 1rem;
+
+  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-display: 'Inter', system-ui, -apple-system, sans-serif;
+}
+
+@layer base {
+  html, body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  }
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Material Symbols alignment helper */
+.material-symbols-outlined {
+  font-family: 'Material Symbols Outlined';
+  font-weight: normal;
+  font-style: normal;
+  font-size: 24px;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  display: inline-block;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: 'liga';
+  -webkit-font-smoothing: antialiased;
+  vertical-align: middle;
+}
