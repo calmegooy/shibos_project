@@ -9,14 +9,18 @@ import {
   OrderStatus,
   PaymentStatus,
 } from '../types/admin';
+import { hasAdminAuthorization, resolveAdminAccess } from '../lib/adminAccess';
+import { isSupabaseConfigured, supabase } from '../lib/supabase';
+import type { Session } from '@supabase/supabase-js';
+import { loadAdminMenu, removeMenuItem, setMenuAvailability, upsertMenuItem } from '../lib/menuRepository';
+import { loadAdminOrders, loadQrisTransactions, markCashPaymentPaid, updateOrderStatus as persistOrderStatus, updateQrisStatus } from '../lib/orderRepository';
+import { isPreviewMode } from '../lib/previewMode';
 import { SHIBOSS_91_MENU } from '../data/shiboss91Menu';
-import {
-  CURRENT_ADMIN_USER,
-  INITIAL_ORDERS,
-  INITIAL_QRIS_TRANSACTIONS,
-  INITIAL_ACTIVITY_LOGS,
-} from '../data/mockAdminData';
-import { readSessionState, writeSessionState } from '../lib/sessionState';
+
+const PREVIEW_ADMIN: AdminUser = {
+  id: 'preview-admin', name: 'Admin Preview', email: 'preview@local.invalid', role: 'Kasir Utama',
+  shift: 'Shift Pagi (08:00 - 15:00)', outlet: 'Kedai Shiboss', isOnline: true,
+};
 
 export interface AdminToast {
   id: string;
@@ -35,6 +39,7 @@ interface AdminContextType {
 
   // Auth
   isAuthenticated: boolean;
+  authStatus: 'loading' | 'unauthenticated' | 'denied' | 'authorized';
   currentUser: AdminUser;
   login: (email: string, pass: string) => Promise<boolean>;
   logout: () => void;
@@ -43,6 +48,7 @@ interface AdminContextType {
 
   // Menu Management
   menuItems: AdminMenuItem[];
+  menuLoadStatus: 'loading' | 'ready' | 'error' | 'unavailable';
   editingItem: AdminMenuItem | null;
   isAddEditModalOpen: boolean;
   openAddModal: () => void;
@@ -54,9 +60,11 @@ interface AdminContextType {
 
   // Orders Management
   orders: AdminOrder[];
+  ordersLoadStatus: 'loading' | 'ready' | 'error';
   selectedOrder: AdminOrder | null;
   setSelectedOrder: (order: AdminOrder | null) => void;
   updateOrderStatus: (orderId: string, status: OrderStatus, reason?: string) => void;
+  markCashPaymentPaid: (orderId: string) => void;
   pendingOrdersCount: number;
 
   // QRIS Transactions
@@ -65,30 +73,12 @@ interface AdminContextType {
   setSelectedQris: (qris: QrisTransaction | null) => void;
   verifyQrisPayment: (transactionId: string) => void;
   rejectQrisPayment: (transactionId: string, reason: string) => void;
-  recordCustomerTransferProof: (
-    orderId: string,
-    tableNumber: string,
-    amount: number,
-    customerName: string,
-    proofImageUrl: string
-  ) => void;
   pendingQrisCount: number;
 
   // Activity Logs & Notifications
   activityLogs: ActivityLog[];
   notifications: Array<{ id: string; title: string; time: string; read: boolean }>;
   markNotificationsAsRead: () => void;
-
-  // Simulated Demo States
-  simulateLoading: boolean;
-  setSimulateLoading: (v: boolean) => void;
-  simulateError: boolean;
-  setSimulateError: (v: boolean) => void;
-  simulateEmptyOrders: boolean;
-  setSimulateEmptyOrders: (v: boolean) => void;
-  simulateEmptyQris: boolean;
-  setSimulateEmptyQris: (v: boolean) => void;
-  resetAllDemoStates: () => void;
 
   // Toast
   adminToast: AdminToast | null;
@@ -104,122 +94,144 @@ interface AdminProviderProps {
 }
 
 export const AdminProvider: React.FC<AdminProviderProps> = ({ children, initialScreen = 'dashboard' }) => {
-  const [currentScreen, setCurrentScreen] = useState<AdminScreen>(initialScreen);
+  const [currentScreen, setCurrentScreen] = useState<AdminScreen>(isPreviewMode && initialScreen === 'login' ? 'dashboard' : initialScreen);
   const [viewMode, setViewMode] = useState<'admin' | 'customer'>('admin');
   const [isSidebarOpenMobile, setIsSidebarOpenMobile] = useState(false);
 
   // Auth State
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
-  const [currentUser, setCurrentUser] = useState<AdminUser>(CURRENT_ADMIN_USER);
+  const [authStatus, setAuthStatus] = useState<'loading' | 'unauthenticated' | 'denied' | 'authorized'>('loading');
+  const [currentUser, setCurrentUser] = useState<AdminUser>({
+    id: '', name: 'Admin', email: '', role: 'Kasir Utama', shift: 'Shift Pagi (08:00 - 15:00)',
+    outlet: 'Kedai Shiboss', isOnline: true,
+  });
   const [isLoginLoading, setIsLoginLoading] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
 
   // Menu State
-  const [menuItems, setMenuItems] = useState<AdminMenuItem[]>(SHIBOSS_91_MENU);
+  const [menuItems, setMenuItems] = useState<AdminMenuItem[]>([]);
+  const [menuLoadStatus, setMenuLoadStatus] = useState<'loading' | 'ready' | 'error' | 'unavailable'>('loading');
   const [editingItem, setEditingItem] = useState<AdminMenuItem | null>(null);
   const [isAddEditModalOpen, setIsAddEditModalOpen] = useState(false);
 
   // Orders State
-  const [orders, setOrders] = useState<AdminOrder[]>(INITIAL_ORDERS);
+  const [orders, setOrders] = useState<AdminOrder[]>([]);
+  const [ordersLoadStatus, setOrdersLoadStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [selectedOrder, setSelectedOrder] = useState<AdminOrder | null>(null);
 
   // QRIS State
-  const [qrisTransactions, setQrisTransactions] = useState<QrisTransaction[]>(
-    INITIAL_QRIS_TRANSACTIONS
-  );
+  const [qrisTransactions, setQrisTransactions] = useState<QrisTransaction[]>([]);
   const [selectedQris, setSelectedQris] = useState<QrisTransaction | null>(null);
 
   // Activity & Notifications
-  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>(INITIAL_ACTIVITY_LOGS);
-  const [notifications, setNotifications] = useState([
-    {
-      id: 'notif-1',
-      title: '2 Pembayaran QRIS menunggu verifikasi kasir',
-      time: '15:23 WIB',
-      read: false,
-    },
-    {
-      id: 'notif-2',
-      title: 'Pesanan baru #SHB-1094 di Meja 04',
-      time: '15:22 WIB',
-      read: false,
-    },
-    {
-      id: 'notif-3',
-      title: 'Pesanan #SHB-1091 telah mulai diracik',
-      time: '14:58 WIB',
-      read: true,
-    },
-  ]);
-
-  // Simulated testing states
-  const [simulateLoading, setSimulateLoading] = useState(false);
-  const [simulateError, setSimulateError] = useState(false);
-  const [simulateEmptyOrders, setSimulateEmptyOrders] = useState(false);
-  const [simulateEmptyQris, setSimulateEmptyQris] = useState(false);
+  const [activityLogs] = useState<ActivityLog[]>([]);
+  const [notifications] = useState<Array<{ id: string; title: string; time: string; read: boolean }>>([]);
 
   // Toast
   const [adminToast, setAdminToast] = useState<AdminToast | null>(null);
-  const [sessionRestored, setSessionRestored] = useState(false);
-
   useEffect(() => {
-    const snapshot = typeof window === 'undefined' ? null : readSessionState(window.sessionStorage)?.admin;
-    if (snapshot) {
-      if (typeof snapshot.isAuthenticated === 'boolean') setIsAuthenticated(snapshot.isAuthenticated);
-      if (snapshot.currentUser && typeof snapshot.currentUser === 'object') {
-        setCurrentUser(snapshot.currentUser as AdminUser);
-      }
-      if (Array.isArray(snapshot.menuItems)) setMenuItems(snapshot.menuItems as AdminMenuItem[]);
-      if (Array.isArray(snapshot.orders)) setOrders(snapshot.orders as AdminOrder[]);
-      if (snapshot.selectedOrder === null || (typeof snapshot.selectedOrder === 'object' && snapshot.selectedOrder !== null)) {
-        setSelectedOrder(snapshot.selectedOrder as AdminOrder | null);
-      }
-      if (Array.isArray(snapshot.qrisTransactions)) setQrisTransactions(snapshot.qrisTransactions as QrisTransaction[]);
-      if (Array.isArray(snapshot.activityLogs)) setActivityLogs(snapshot.activityLogs as ActivityLog[]);
-      if (Array.isArray(snapshot.notifications)) {
-        setNotifications(snapshot.notifications as typeof notifications);
-      }
-      if (typeof snapshot.simulateLoading === 'boolean') setSimulateLoading(snapshot.simulateLoading);
-      if (typeof snapshot.simulateError === 'boolean') setSimulateError(snapshot.simulateError);
-      if (typeof snapshot.simulateEmptyOrders === 'boolean') setSimulateEmptyOrders(snapshot.simulateEmptyOrders);
-      if (typeof snapshot.simulateEmptyQris === 'boolean') setSimulateEmptyQris(snapshot.simulateEmptyQris);
+    let active = true;
+    if (isPreviewMode) {
+      setCurrentUser(PREVIEW_ADMIN);
+      setAuthStatus('authorized');
+      setMenuItems(SHIBOSS_91_MENU);
+      setMenuLoadStatus('ready');
+      setOrders([]);
+      setOrdersLoadStatus('ready');
+      setQrisTransactions([]);
+      return () => { active = false; };
     }
-    setSessionRestored(true);
+    const applySession = async (session: Session | null) => {
+      if (!active) return;
+      if (!session?.user) {
+        setAuthStatus('unauthenticated');
+        return;
+      }
+
+      setAuthStatus('loading');
+      const isAdmin = Boolean(supabase && await hasAdminAuthorization(supabase, session.user.id));
+      if (!active) return;
+      const decision = resolveAdminAccess(false, session.user.id, isAdmin);
+      setAuthStatus(decision.status);
+
+      if (decision.status === 'authorized') {
+        setCurrentUser({
+          ...currentUser,
+          id: session.user.id,
+          email: session.user.email ?? '',
+          name: session.user.user_metadata?.full_name ?? session.user.email?.split('@')[0] ?? 'Admin',
+        });
+      }
+    };
+
+    if (!supabase) {
+      setAuthStatus('unauthenticated');
+      setLoginError('Supabase belum dikonfigurasi. Isi VITE_SUPABASE_URL dan VITE_SUPABASE_PUBLISHABLE_KEY.');
+      return () => { active = false; };
+    }
+
+    const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
+      queueMicrotask(() => { void applySession(session); });
+    });
+    void supabase.auth.getSession().then(({ data, error }) => {
+      if (error) {
+        setAuthStatus('unauthenticated');
+        setLoginError('Tidak dapat memulihkan sesi admin. Silakan masuk kembali.');
+        return;
+      }
+      void applySession(data.session);
+    });
+
+    return () => {
+      active = false;
+      listener.subscription.unsubscribe();
+    };
   }, []);
 
+  const refreshOperationalData = async () => {
+    if (!supabase || authStatus !== 'authorized') return;
+    try {
+      const [nextOrders, nextQris] = await Promise.all([
+        loadAdminOrders(supabase),
+        loadQrisTransactions(supabase),
+      ]);
+      setOrders(nextOrders);
+      setQrisTransactions(nextQris);
+      setSelectedOrder((selected) => selected ? nextOrders.find((order) => order.databaseId === selected.databaseId) ?? null : null);
+      setOrdersLoadStatus('ready');
+    } catch {
+      setOrdersLoadStatus('error');
+    }
+  };
+
   useEffect(() => {
-    if (!sessionRestored || typeof window === 'undefined') return;
-    writeSessionState(window.sessionStorage, {
-      admin: {
-        isAuthenticated,
-        currentUser,
-        menuItems,
-        orders,
-        selectedOrder,
-        qrisTransactions,
-        activityLogs,
-        notifications,
-        simulateLoading,
-        simulateError,
-        simulateEmptyOrders,
-        simulateEmptyQris,
-      },
+    if (isPreviewMode) return;
+    if (authStatus !== 'authorized') return;
+    setOrdersLoadStatus('loading');
+    void refreshOperationalData();
+    const timer = window.setInterval(() => { void refreshOperationalData(); }, 15000);
+    return () => window.clearInterval(timer);
+  }, [authStatus]);
+
+  useEffect(() => {
+    let active = true;
+    if (isPreviewMode) return () => { active = false; };
+    if (authStatus !== 'authorized') return () => { active = false; };
+    if (!supabase) {
+      setMenuLoadStatus('unavailable');
+      return () => { active = false; };
+    }
+    setMenuLoadStatus('loading');
+    void loadAdminMenu(supabase).then((items) => {
+      if (!active) return;
+      setMenuItems(items);
+      setMenuLoadStatus('ready');
+    }).catch(() => {
+      if (!active) return;
+      setMenuItems([]);
+      setMenuLoadStatus('error');
     });
-  }, [
-    sessionRestored,
-    isAuthenticated,
-    currentUser,
-    menuItems,
-    orders,
-    selectedOrder,
-    qrisTransactions,
-    activityLogs,
-    notifications,
-    simulateLoading,
-    simulateError,
-    simulateEmptyOrders,
-    simulateEmptyQris,
-  ]);
+    return () => { active = false; };
+  }, [authStatus]);
 
   const showToast = (message: string, type: 'success' | 'error' | 'info' = 'success') => {
     setAdminToast({ id: Date.now().toString(), message, type });
@@ -232,11 +244,12 @@ export const AdminProvider: React.FC<AdminProviderProps> = ({ children, initialS
 
   // Auth functions
   const login = async (email: string, pass: string): Promise<boolean> => {
+    if (isPreviewMode) {
+      setCurrentScreen('dashboard');
+      return true;
+    }
     setIsLoginLoading(true);
     setLoginError(null);
-
-    // Simulate backend verification
-    await new Promise((r) => setTimeout(r, 900));
 
     if (!email || !pass) {
       setIsLoginLoading(false);
@@ -244,25 +257,48 @@ export const AdminProvider: React.FC<AdminProviderProps> = ({ children, initialS
       return false;
     }
 
-    if (pass.length < 4) {
+    if (!supabase || !isSupabaseConfigured) {
       setIsLoginLoading(false);
-      setLoginError('Kata sandi salah atau tidak terdaftar.');
+      setLoginError('Supabase belum dikonfigurasi. Isi VITE_SUPABASE_URL dan VITE_SUPABASE_PUBLISHABLE_KEY.');
       return false;
     }
 
-    setIsLoginLoading(false);
-    setIsAuthenticated(true);
+    const { data, error } = await supabase.auth.signInWithPassword({ email: email.trim(), password: pass });
+    if (error || !data.user) {
+      setIsLoginLoading(false);
+      setLoginError(error?.message ?? 'Email atau kata sandi tidak valid.');
+      return false;
+    }
+
+    const isAdmin = await hasAdminAuthorization(supabase, data.user.id);
+    if (!isAdmin) {
+      await supabase.auth.signOut();
+      setAuthStatus('denied');
+      setIsLoginLoading(false);
+      setLoginError('Akun ini belum diberi akses admin Shiboss.');
+      return false;
+    }
+
     setCurrentUser({
-      ...CURRENT_ADMIN_USER,
-      email: email,
+        ...currentUser,
+      id: data.user.id,
+      email: data.user.email ?? email,
+      name: data.user.user_metadata?.full_name ?? data.user.email?.split('@')[0] ?? 'Admin',
     });
+    setAuthStatus('authorized');
+    setIsLoginLoading(false);
     setCurrentScreen('dashboard');
     showToast('Berhasil masuk ke Dashboard Shiboss', 'success');
     return true;
   };
 
   const logout = () => {
-    setIsAuthenticated(false);
+    if (isPreviewMode) {
+      setCurrentScreen('dashboard');
+      return;
+    }
+    void supabase?.auth.signOut();
+    setAuthStatus('unauthenticated');
     setCurrentScreen('login');
     showToast('Sesi admin telah ditutup.', 'info');
   };
@@ -284,341 +320,104 @@ export const AdminProvider: React.FC<AdminProviderProps> = ({ children, initialS
   };
 
   const saveMenuItem = async (itemData: Partial<AdminMenuItem>): Promise<boolean> => {
-    await new Promise((r) => setTimeout(r, 600));
-
-    if (editingItem) {
-      // Edit
-      setMenuItems((prev) =>
-        prev.map((item) =>
-          item.id === editingItem.id
-            ? ({
-                ...item,
-                ...itemData,
-                updatedAt: new Date().toLocaleTimeString('id-ID', {
-                  hour: '2-digit',
-                  minute: '2-digit',
-                }),
-              } as AdminMenuItem)
-            : item
-        )
-      );
-      showToast(`Menu "${itemData.name || editingItem.name}" berhasil diperbarui.`);
-    } else {
-      // Create new
-      const nextNum = menuItems.length + 1;
-      const newItem: AdminMenuItem = {
-        id: `custom-item-${Date.now()}`,
-        code: `SHB-NEW${nextNum}`,
-        name: itemData.name || 'Menu Baru',
-        category: itemData.category || 'Special Susu',
-        price: itemData.price || 12000,
-        description: itemData.description || 'Deskripsi menu lezat khas Shiboss.',
-        image: itemData.image || '',
-        isAvailable: itemData.isAvailable ?? true,
-        updatedAt: 'Baru saja',
-      };
-      setMenuItems((prev) => [newItem, ...prev]);
-      showToast(`Menu baru "${newItem.name}" berhasil ditambahkan.`);
+    if (isPreviewMode) {
+      showToast('Mode pratinjau: perubahan menu tidak disimpan.', 'info');
+      return false;
     }
-
-    closeAddEditModal();
-    return true;
+    if (!supabase) {
+      showToast('Supabase belum dikonfigurasi.', 'error');
+      return false;
+    }
+    const generatedId = crypto.randomUUID();
+    const item: AdminMenuItem = {
+      id: editingItem?.id ?? `custom-${generatedId}`,
+      code: editingItem?.code ?? `SHB-${generatedId.slice(0, 8).toUpperCase()}`,
+      name: itemData.name?.trim() ?? editingItem?.name ?? '',
+      category: itemData.category ?? editingItem?.category ?? 'Special Susu',
+      price: itemData.price ?? editingItem?.price ?? 0,
+      description: itemData.description ?? editingItem?.description ?? '',
+      image: itemData.image ?? editingItem?.image ?? '',
+      isAvailable: itemData.isAvailable ?? editingItem?.isAvailable ?? true,
+      isCustomerVisible: itemData.isCustomerVisible ?? editingItem?.isCustomerVisible ?? false,
+      isPopular: editingItem?.isPopular,
+      isBestseller: editingItem?.isBestseller,
+      badge: editingItem?.badge,
+      updatedAt: new Date().toISOString(),
+    };
+    try {
+      await upsertMenuItem(supabase, item);
+      setMenuItems(await loadAdminMenu(supabase));
+      closeAddEditModal();
+      showToast(`Menu "${item.name}" berhasil disimpan.`);
+      return true;
+    } catch {
+      showToast('Menu gagal disimpan. Periksa koneksi dan akses admin, lalu coba lagi.', 'error');
+      return false;
+    }
   };
 
   const deleteMenuItem = (id: string) => {
+    if (isPreviewMode) return showToast('Mode pratinjau: perubahan menu tidak disimpan.', 'info');
     const item = menuItems.find((i) => i.id === id);
-    setMenuItems((prev) => prev.filter((i) => i.id !== id));
-    showToast(`Menu "${item?.name || 'terpilih'}" telah dihapus dari daftar.`, 'info');
+    if (!supabase) return showToast('Supabase belum dikonfigurasi.', 'error');
+    const client = supabase;
+    void removeMenuItem(client, id).then(async () => {
+      setMenuItems(await loadAdminMenu(client));
+      showToast(`Menu "${item?.name || 'terpilih'}" telah dihapus dari daftar.`, 'info');
+    }).catch(() => showToast('Menu gagal dihapus. Coba lagi.', 'error'));
   };
 
   const toggleItemAvailability = (id: string) => {
-    setMenuItems((prev) =>
-      prev.map((item) => {
-        if (item.id === id) {
-          const nextState = !item.isAvailable;
-          showToast(
-            `Status "${item.name}" diubah menjadi: ${nextState ? 'Tersedia' : 'Stok Habis'}`,
-            nextState ? 'success' : 'info'
-          );
-          return {
-            ...item,
-            isAvailable: nextState,
-            updatedAt: 'Baru saja',
-          };
-        }
-        return item;
-      })
-    );
+    if (isPreviewMode) return showToast('Mode pratinjau: perubahan menu tidak disimpan.', 'info');
+    const item = menuItems.find((candidate) => candidate.id === id);
+    if (!supabase || !item) return;
+    const client = supabase;
+    const nextState = !item.isAvailable;
+    void setMenuAvailability(client, id, nextState).then(async () => {
+      setMenuItems(await loadAdminMenu(client));
+      showToast(`Status "${item.name}" diubah menjadi: ${nextState ? 'Tersedia' : 'Stok Habis'}`, nextState ? 'success' : 'info');
+    }).catch(() => showToast('Status ketersediaan gagal diperbarui.', 'error'));
   };
 
   // Orders Handlers
   const updateOrderStatus = (orderId: string, status: OrderStatus, reason?: string) => {
-    setOrders((prev) =>
-      prev.map((order) => {
-        if (order.id === orderId) {
-          return {
-            ...order,
-            orderStatus: status,
-            cancellationReason: reason || order.cancellationReason,
-          };
-        }
-        return order;
-      })
-    );
-
-    // Also update selectedOrder if open
-    if (selectedOrder && selectedOrder.id === orderId) {
-      setSelectedOrder((prev) =>
-        prev
-          ? {
-              ...prev,
-              orderStatus: status,
-              cancellationReason: reason || prev.cancellationReason,
-            }
-          : null
-      );
-    }
-
-    const statusLabels: Record<OrderStatus, string> = {
-      menunggu: 'Menunggu',
-      dikonfirmasi: 'Dikonfirmasi',
-      diracik: 'Sedang Diracik di Dapur',
-      selesai: 'Selesai & Diantar',
-      dibatalkan: 'Dibatalkan',
-    };
-
-    showToast(`Status pesanan ${orderId} diubah menjadi: ${statusLabels[status]}`);
-
-    // Append to activity log
-    setActivityLogs((prev) => [
-      {
-        id: `act-${Date.now()}`,
-        timestamp: new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB',
-        type: 'order',
-        title: `Pesanan ${orderId} ${statusLabels[status]}`,
-        description: reason ? `Alasan: ${reason}` : `Diproses oleh ${currentUser.name}`,
-        actor: currentUser.name,
-      },
-      ...prev,
-    ]);
+    const order = orders.find((candidate) => candidate.id === orderId);
+    if (!supabase || !order?.databaseId) return showToast('Data pesanan tidak tersedia.', 'error');
+    void persistOrderStatus(supabase, order.databaseId, status, reason).then(async () => {
+      await refreshOperationalData();
+      showToast(`Status pesanan ${orderId} berhasil diperbarui.`);
+    }).catch(() => showToast('Status pesanan gagal diperbarui.', 'error'));
   };
 
   // QRIS Handlers
   const verifyQrisPayment = (transactionId: string) => {
     const trx = qrisTransactions.find((q) => q.id === transactionId);
-    if (!trx) return;
-
-    const timeString =
-      new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB';
-
-    // Update QRIS transaction
-    setQrisTransactions((prev) =>
-      prev.map((t) =>
-        t.id === transactionId
-          ? {
-              ...t,
-              status: 'terverifikasi',
-              verifiedBy: currentUser.name,
-              verifiedAt: timeString,
-            }
-          : t
-      )
-    );
-
-    // Update corresponding order
-    setOrders((prev) =>
-      prev.map((o) =>
-        o.id === trx.orderId
-          ? {
-              ...o,
-              paymentStatus: 'terverifikasi',
-              orderStatus: o.orderStatus === 'menunggu' ? 'dikonfirmasi' : o.orderStatus,
-              verifiedBy: currentUser.name,
-              verifiedAt: timeString,
-            }
-          : o
-      )
-    );
-
-    showToast(
-      `Pembayaran QRIS ${trx.orderId} senilai Rp${trx.amount.toLocaleString('id-ID')} Berhasil Diverifikasi!`,
-      'success'
-    );
-
-    setActivityLogs((prev) => [
-      {
-        id: `act-${Date.now()}`,
-        timestamp: timeString,
-        type: 'payment',
-        title: `QRIS ${trx.orderId} Terverifikasi`,
-        description: `Nominal Rp${trx.amount.toLocaleString('id-ID')} diverifikasi oleh ${currentUser.name}`,
-        actor: currentUser.name,
-      },
-      ...prev,
-    ]);
+    if (!supabase || !trx) return;
+    void updateQrisStatus(supabase, trx, 'terverifikasi').then(async () => {
+      await refreshOperationalData();
+      showToast(`Pembayaran QRIS ${trx.orderId} berhasil diverifikasi.`);
+    }).catch(() => showToast('Verifikasi QRIS gagal. Muat ulang data dan coba lagi.', 'error'));
   };
 
   const rejectQrisPayment = (transactionId: string, reason: string) => {
     const trx = qrisTransactions.find((q) => q.id === transactionId);
-    if (!trx) return;
-
-    const timeString =
-      new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB';
-
-    // Update QRIS transaction
-    setQrisTransactions((prev) =>
-      prev.map((t) =>
-        t.id === transactionId
-          ? {
-              ...t,
-              status: 'ditolak',
-              rejectionReason: reason,
-              verifiedBy: currentUser.name,
-              verifiedAt: timeString,
-            }
-          : t
-      )
-    );
-
-    // Update corresponding order
-    setOrders((prev) =>
-      prev.map((o) =>
-        o.id === trx.orderId
-          ? {
-              ...o,
-              paymentStatus: 'ditolak',
-              orderStatus: 'dibatalkan',
-              cancellationReason: `QRIS Ditolak: ${reason}`,
-              verifiedBy: currentUser.name,
-              verifiedAt: timeString,
-            }
-          : o
-      )
-    );
-
-    showToast(`Pembayaran QRIS ${trx.orderId} ditolak. Alasan: ${reason}`, 'error');
-
-    setActivityLogs((prev) => [
-      {
-        id: `act-${Date.now()}`,
-        timestamp: timeString,
-        type: 'payment',
-        title: `QRIS ${trx.orderId} Ditolak`,
-        description: `Alasan: ${reason} (Ditolak oleh ${currentUser.name})`,
-        actor: currentUser.name,
-      },
-      ...prev,
-    ]);
+    if (!supabase || !trx) return;
+    void updateQrisStatus(supabase, trx, 'ditolak', reason).then(async () => {
+      await refreshOperationalData();
+      showToast(`Pembayaran QRIS ${trx.orderId} ditolak.`, 'error');
+    }).catch(() => showToast('Penolakan QRIS gagal. Muat ulang data dan coba lagi.', 'error'));
   };
 
-  const recordCustomerTransferProof = (
-    orderId: string,
-    tableNumber: string,
-    amount: number,
-    customerName: string,
-    proofImageUrl: string
-  ) => {
-    const timeString =
-      new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' }) + ' WIB';
-
-    // 1. Update or prepend QRIS transaction
-    setQrisTransactions((prev) => {
-      const existingIdx = prev.findIndex((q) => q.orderId === orderId);
-      if (existingIdx !== -1) {
-        return prev.map((q, idx) =>
-          idx === existingIdx
-            ? {
-                ...q,
-                transferProofImage: proofImageUrl,
-                status: 'menunggu_verifikasi',
-                createdAt: timeString,
-              }
-            : q
-        );
-      }
-      const newTrx: QrisTransaction = {
-        id: `QRIS-${Date.now().toString().slice(-8)}`,
-        orderId,
-        customerName: customerName || `Pelanggan Meja ${tableNumber}`,
-        tableNumber: `Meja ${tableNumber}`,
-        amount,
-        createdAt: timeString,
-        status: 'menunggu_verifikasi',
-        rrn: Math.floor(100000000000 + Math.random() * 900000000000).toString(),
-        issuer: 'QRIS Dinamis Pelanggan',
-        terminalId: 'SHIBOSS-ID01',
-        transferProofImage: proofImageUrl,
-      };
-      return [newTrx, ...prev];
-    });
-
-    // 2. Update orders list
-    setOrders((prev) => {
-      const existingIdx = prev.findIndex((o) => o.id === orderId);
-      if (existingIdx !== -1) {
-        return prev.map((o, idx) =>
-          idx === existingIdx
-            ? {
-                ...o,
-                transferProofImage: proofImageUrl,
-                paymentStatus: 'menunggu_verifikasi',
-              }
-            : o
-        );
-      }
-      const newOrder: AdminOrder = {
-        id: orderId,
-        tableNumber: `Meja ${tableNumber}`,
-        customerName: customerName || `Pelanggan Meja ${tableNumber}`,
-        createdAt: timeString,
-        paymentMethod: 'qris',
-        paymentStatus: 'menunggu_verifikasi',
-        orderStatus: 'menunggu',
-        subtotal: amount,
-        tax: 0,
-        total: amount,
-        transferProofImage: proofImageUrl,
-        items: [],
-      };
-      return [newOrder, ...prev];
-    });
-
-    // 3. Add Activity Log
-    setActivityLogs((prev) => [
-      {
-        id: `act-${Date.now()}`,
-        timestamp: timeString,
-        type: 'payment',
-        title: `Bukti Transfer Baru Masuk`,
-        description: `Pelanggan Meja #${tableNumber} (${orderId}) telah mengunggah bukti pembayaran QRIS sebesar Rp${amount.toLocaleString('id-ID')}.`,
-        actor: 'Pelanggan (Self-Service)',
-      },
-      ...prev,
-    ]);
-
-    // 4. Add Notification
-    setNotifications((prev) => [
-      {
-        id: `notif-${Date.now()}`,
-        title: `Bukti TF Meja #${tableNumber} menunggu verifikasi`,
-        time: 'Baru saja',
-        read: false,
-      },
-      ...prev,
-    ]);
+  const confirmCashPayment = (orderId: string) => {
+    const order = orders.find((candidate) => candidate.databaseId === orderId);
+    if (!supabase || !order || order.paymentMethod !== 'cash') return;
+    void markCashPaymentPaid(supabase, orderId).then(async () => {
+      await refreshOperationalData();
+      showToast(`Pembayaran tunai pesanan ${order.id} dikonfirmasi.`);
+    }).catch(() => showToast('Pembayaran tunai gagal dikonfirmasi.', 'error'));
   };
 
-  const markNotificationsAsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
-  };
-
-  const resetAllDemoStates = () => {
-    setSimulateLoading(false);
-    setSimulateError(false);
-    setSimulateEmptyOrders(false);
-    setSimulateEmptyQris(false);
-    showToast('Status simulasi telah di-reset ke kondisi normal.', 'info');
-  };
+  const markNotificationsAsRead = () => undefined;
 
   const pendingOrdersCount = useMemo(
     () => orders.filter((o) => o.orderStatus === 'menunggu').length,
@@ -639,13 +438,15 @@ export const AdminProvider: React.FC<AdminProviderProps> = ({ children, initialS
         setViewMode,
         isSidebarOpenMobile,
         setIsSidebarOpenMobile,
-        isAuthenticated,
+        isAuthenticated: authStatus === 'authorized',
+        authStatus,
         currentUser,
         login,
         logout,
         isLoginLoading,
         loginError,
         menuItems,
+        menuLoadStatus,
         editingItem,
         isAddEditModalOpen,
         openAddModal,
@@ -655,29 +456,21 @@ export const AdminProvider: React.FC<AdminProviderProps> = ({ children, initialS
         deleteMenuItem,
         toggleItemAvailability,
         orders,
+        ordersLoadStatus,
         selectedOrder,
         setSelectedOrder,
         updateOrderStatus,
+        markCashPaymentPaid: confirmCashPayment,
         pendingOrdersCount,
         qrisTransactions,
         selectedQris,
         setSelectedQris,
         verifyQrisPayment,
         rejectQrisPayment,
-        recordCustomerTransferProof,
         pendingQrisCount,
         activityLogs,
         notifications,
         markNotificationsAsRead,
-        simulateLoading,
-        setSimulateLoading,
-        simulateError,
-        setSimulateError,
-        simulateEmptyOrders,
-        setSimulateEmptyOrders,
-        simulateEmptyQris,
-        setSimulateEmptyQris,
-        resetAllDemoStates,
         adminToast,
         showToast,
         hideToast,

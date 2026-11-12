@@ -1,22 +1,19 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useOrder } from '../context/OrderContext';
-import { useAdmin } from '../context/AdminContext';
 import { formatRupiah } from '../data/menuData';
 
 export const PaymentView: React.FC = () => {
   const {
     tableNumber,
     activeOrder,
-    confirmPayment,
+    refreshActiveOrder,
     uploadTransferProof,
     showToast,
   } = useOrder();
 
-  const { recordCustomerTransferProof } = useAdmin();
-
   const [copied, setCopied] = useState(false);
   const [isChecking, setIsChecking] = useState(false);
-  const [totalSeconds, setTotalSeconds] = useState(14 * 60 + 48);
+  const proofFileRef = useRef<File | null>(null);
 
   // Transfer Proof Upload States
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -27,25 +24,15 @@ export const PaymentView: React.FC = () => {
   const [proofFileSize, setProofFileSize] = useState<string>('');
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
-  const [isUploaded, setIsUploaded] = useState(!!activeOrder?.transferProofImage);
+  const [isUploaded, setIsUploaded] = useState(Boolean(activeOrder?.transferProofPath || activeOrder?.transferProofImage));
   const [fullscreenPreview, setFullscreenPreview] = useState<string | null>(null);
 
-  const initialSeconds = 15 * 60;
-  const orderId = activeOrder?.orderId || '#SB-2025-0891';
-  const totalAmount = activeOrder ? activeOrder.total : 34000;
-
-  // Countdown timer effect
   useEffect(() => {
-    const timer = setInterval(() => {
-      setTotalSeconds((prev) => (prev > 0 ? prev - 1 : 0));
-    }, 1000);
-    return () => clearInterval(timer);
-  }, []);
+    setIsUploaded(Boolean(activeOrder?.transferProofPath || activeOrder?.transferProofImage));
+  }, [activeOrder?.transferProofPath, activeOrder?.transferProofImage]);
 
-  const minutes = Math.floor(totalSeconds / 60);
-  const seconds = totalSeconds % 60;
-  const formattedTime = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-  const strokeDash = Math.round((totalSeconds / initialSeconds) * 100);
+  const orderId = activeOrder?.orderId;
+  const totalAmount = activeOrder?.total ?? 0;
 
   const handleCopyAmount = () => {
     navigator.clipboard.writeText(totalAmount.toString());
@@ -54,13 +41,13 @@ export const PaymentView: React.FC = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleCheckStatus = () => {
+  const handleCheckStatus = async () => {
     setIsChecking(true);
-    setTimeout(() => {
-      setIsChecking(false);
-      // Auto-validate and forward to order status
-      confirmPayment();
-    }, 1200);
+    const refreshed = await refreshActiveOrder();
+    setIsChecking(false);
+    if (refreshed?.paymentStatus === 'terverifikasi' || refreshed?.paymentStatus === 'tunai_lunas') {
+      window.location.assign('/order');
+    }
   };
 
   // Handle image file selection
@@ -82,7 +69,7 @@ export const PaymentView: React.FC = () => {
       setProofFileName(file.name);
       setProofFileSize(`${(file.size / 1024).toFixed(0)} KB`);
       setIsUploaded(false);
-      showToast('Foto bukti transfer siap dikirim!');
+      proofFileRef.current = file;
     };
     reader.readAsDataURL(file);
   };
@@ -118,37 +105,27 @@ export const PaymentView: React.FC = () => {
     setProofFileName('');
     setProofFileSize('');
     setIsUploaded(false);
+    proofFileRef.current = null;
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   };
 
-  const handleSubmitProof = () => {
-    if (!proofPreview) {
+  const handleSubmitProof = async () => {
+    if (!proofFileRef.current) {
       showToast('Silakan pilih foto bukti transfer terlebih dahulu.');
       return;
     }
 
     setIsUploading(true);
-
-    setTimeout(() => {
-      // 1. Update customer active order
-      uploadTransferProof(proofPreview);
-
-      // 2. Synchronize to Admin Dashboard QRIS Transactions & Orders
-      recordCustomerTransferProof(
-        orderId,
-        tableNumber,
-        totalAmount,
-        activeOrder?.customerName || '',
-        proofPreview
-      );
-
-      setIsUploading(false);
-      setIsUploaded(true);
-      showToast('Bukti transfer berhasil dikirim ke Kasir Shiboss!');
-    }, 600);
+    const uploaded = await uploadTransferProof(proofFileRef.current);
+    setIsUploading(false);
+    if (uploaded) setIsUploaded(true);
   };
+
+  if (!activeOrder || !orderId) {
+    return <section className="mx-auto my-12 max-w-xl rounded-2xl border border-slate-200 bg-white p-8 text-center"><h1 className="text-xl font-bold text-slate-900">Tidak ada pesanan untuk dibayar</h1><p className="mt-2 text-sm text-slate-600">Silakan buat pesanan terlebih dahulu.</p><a href="/menu" className="mt-5 inline-flex rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white">Lihat menu</a></section>;
+  }
 
   return (
     <div className="w-full flex flex-col gap-6 pb-16">
@@ -164,52 +141,18 @@ export const PaymentView: React.FC = () => {
                 Pembayaran Meja #{tableNumber} • ID Pesanan {orderId}
               </span>
               <span className="text-[11px] text-[#434654]">
-                Pindai kode QRIS di bawah ini dengan BCA, GoPay, OVO, Dana, ShopeePay, atau m-Banking Anda.
+                {activeOrder.paymentMethod === 'qris' ? 'Gunakan QRIS resmi kedai yang diberikan kasir, lalu kirim bukti pembayaran untuk verifikasi manual.' : 'Pembayaran tunai diselesaikan langsung kepada kasir.'}
               </span>
             </div>
           </div>
 
-          {/* Dynamic Circular Expiration Countdown */}
-          <div className="flex items-center gap-2 bg-white px-3.5 py-1.5 rounded-full border border-[#D0E2FF] shadow-xs">
-            <div className="relative w-7 h-7 flex items-center justify-center">
-              <svg className="w-full h-full -rotate-90" viewBox="0 0 36 36">
-                <path
-                  className="text-[#ebedff]"
-                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="3.5"
-                />
-                <path
-                  className="text-[#bb0016] transition-all duration-1000 ease-linear"
-                  strokeDasharray={`${strokeDash}, 100`}
-                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="3.5"
-                  strokeLinecap="round"
-                />
-              </svg>
-              <span className="material-symbols-outlined text-[13px] text-[#bb0016] absolute">
-                schedule
-              </span>
-            </div>
-            <div className="flex flex-col items-start leading-tight">
-              <span className="text-[10px] uppercase text-[#737685] tracking-wider font-semibold">
-                Batas Waktu Bayar
-              </span>
-              <span className="text-lg md:text-xl text-[#bb0016] font-extrabold font-mono tabular-nums">
-                {formattedTime}
-              </span>
-            </div>
-          </div>
         </div>
       </section>
 
       {/* Main Content Viewport */}
       <section className="w-full px-4 md:px-6">
         <div className="max-w-4xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-          {/* Left Column: QRIS & Upload Proof Mechanism Card */}
+          {/* Order payment and proof card */}
           <div className="lg:col-span-8 bg-white rounded-2xl shadow-md border border-[#D0E2FF] p-5 md:p-8 flex flex-col gap-6 relative overflow-hidden">
             {/* Header Total Payment Amount */}
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#f3f2ff] p-4 md:p-5 rounded-2xl border border-[#dce1ff]">
@@ -232,137 +175,32 @@ export const PaymentView: React.FC = () => {
               </button>
             </div>
 
-            {/* Official Payment Method Badge */}
+            {/* Payment method */}
             <div className="flex items-center justify-between bg-[#ebedff] px-4 py-2.5 rounded-xl border border-[#dce1ff]">
               <div className="flex items-center gap-2">
                 <span className="material-symbols-outlined text-[#0052cc] text-[20px]">qr_code_scanner</span>
                 <span className="text-xs md:text-sm font-bold text-[#071747]">
-                  Metode Pembayaran: QRIS Instan Dinamis
+                  Metode Pembayaran: {activeOrder.paymentMethod === 'qris' ? 'QRIS (verifikasi manual)' : 'Tunai di kasir'}
                 </span>
               </div>
               <span className="bg-[#0052cc] text-white text-[10px] px-2.5 py-0.5 rounded-full font-bold">
-                Resmi Kedai
+                Manual
               </span>
             </div>
 
-            {/* QRIS Interactive Display */}
-            <div className="flex flex-col items-center text-center gap-4 animate-in fade-in duration-200">
-              {/* QRIS Badge Indicator */}
-              <div className="flex items-center justify-between w-full px-1">
-                <div className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#ebedff] rounded-full text-[#bb0016] text-xs font-bold">
-                  <span className="w-2 h-2 rounded-full bg-[#bb0016]"></span>
-                  QRIS Standar Pembayaran Nasional
-                </div>
-                <span className="text-[11px] text-[#737685] font-mono">NMID: ID102008291029</span>
-              </div>
-
-              {/* Central QR Code Wrapper */}
-              <div className="relative p-5 bg-white rounded-2xl shadow-md border-2 border-[#D0E2FF] flex flex-col items-center max-w-xs w-full">
-                {/* QR Header Emblem */}
-                <div className="w-full flex items-center justify-between pb-2 mb-2 border-b border-[#ebedff]">
-                  <div className="flex items-center gap-1 text-[#bb0016] text-sm tracking-tighter">
-                    <span className="bg-[#bb0016] text-white px-2 py-0.5 rounded font-black text-xs leading-none">
-                      QRIS
-                    </span>
-                    <span className="text-[9px] font-bold text-[#434654] leading-tight">
-                      Pembayaran Cepat
-                    </span>
-                  </div>
-                  <span className="text-[9px] font-mono text-[#737685]">GPN</span>
-                </div>
-
-                {/* Scannable High-Density QR Canvas */}
-                <div className="relative w-56 h-56 bg-white p-2 flex items-center justify-center">
-                  <svg
-                    className="w-full h-full text-[#071747]"
-                    viewBox="0 0 240 240"
-                    fill="none"
-                    xmlns="http://www.w3.org/2000/svg"
-                  >
-                    {/* Corner 1 */}
-                    <rect fill="currentColor" height="60" rx="8" width="60" x="10" y="10"></rect>
-                    <rect fill="#FFFFFF" height="40" rx="4" width="40" x="20" y="20"></rect>
-                    <rect fill="currentColor" height="20" rx="2" width="20" x="30" y="30"></rect>
-                    {/* Corner 2 */}
-                    <rect fill="currentColor" height="60" rx="8" width="60" x="170" y="10"></rect>
-                    <rect fill="#FFFFFF" height="40" rx="4" width="40" x="180" y="20"></rect>
-                    <rect fill="currentColor" height="20" rx="2" width="20" x="190" y="30"></rect>
-                    {/* Corner 3 */}
-                    <rect fill="currentColor" height="60" rx="8" width="60" x="10" y="170"></rect>
-                    <rect fill="#FFFFFF" height="40" rx="4" width="40" x="20" y="180"></rect>
-                    <rect fill="currentColor" height="20" rx="2" width="20" x="30" y="190"></rect>
-                    {/* Density Matrix */}
-                    <rect height="10" rx="2" width="10" x="80" y="15"></rect>
-                    <rect height="20" rx="2" width="10" x="95" y="15"></rect>
-                    <rect height="10" rx="2" width="15" x="115" y="10"></rect>
-                    <rect height="10" rx="2" width="15" x="140" y="15"></rect>
-                    <rect height="10" rx="2" width="20" x="80" y="35"></rect>
-                    <rect height="30" rx="2" width="10" x="110" y="30"></rect>
-                    <rect height="10" rx="2" width="20" x="130" y="35"></rect>
-                    <rect height="15" rx="2" width="15" x="80" y="55"></rect>
-                    <rect height="15" rx="2" width="15" x="145" y="55"></rect>
-                    <rect height="10" rx="2" width="20" x="15" y="80"></rect>
-                    <rect height="20" rx="2" width="10" x="45" y="80"></rect>
-                    <rect height="10" rx="2" width="15" x="65" y="85"></rect>
-                    <rect height="25" rx="2" width="15" x="15" y="100"></rect>
-                    <rect height="10" rx="2" width="25" x="40" y="110"></rect>
-                    <rect height="15" rx="2" width="25" x="15" y="135"></rect>
-                    <rect height="20" rx="2" width="20" x="50" y="130"></rect>
-                    <rect height="10" rx="2" width="20" x="175" y="85"></rect>
-                    <rect height="20" rx="2" width="20" x="205" y="80"></rect>
-                    <rect height="25" rx="2" width="10" x="175" y="105"></rect>
-                    <rect height="10" rx="2" width="30" x="195" y="110"></rect>
-                    <rect height="15" rx="2" width="20" x="180" y="135"></rect>
-                    <rect height="25" rx="2" width="15" x="210" y="135"></rect>
-                    <rect height="15" rx="2" width="15" x="85" y="85"></rect>
-                    <rect height="15" rx="2" width="15" x="140" y="85"></rect>
-                    <rect height="15" rx="2" width="15" x="85" y="140"></rect>
-                    <rect height="15" rx="2" width="15" x="140" y="140"></rect>
-                    <rect height="10" rx="2" width="20" x="80" y="175"></rect>
-                    <rect height="25" rx="2" width="15" x="110" y="170"></rect>
-                    <rect height="10" rx="2" width="20" x="135" y="180"></rect>
-                    <rect height="20" rx="2" width="15" x="80" y="195"></rect>
-                    <rect height="15" rx="2" width="30" x="105" y="205"></rect>
-                    <rect height="20" rx="2" width="20" x="145" y="200"></rect>
-                    <rect height="15" rx="2" width="15" x="175" y="175"></rect>
-                    <rect height="10" rx="2" width="25" x="200" y="175"></rect>
-                    <rect height="15" rx="2" width="20" x="180" y="200"></rect>
-                    <rect height="25" rx="2" width="15" x="210" y="195"></rect>
-                  </svg>
-
-                  {/* Central Shi Boss Badge */}
-                  <div className="absolute inset-0 m-auto w-12 h-12 bg-white rounded-full p-1 shadow-md flex items-center justify-center">
-                    <div className="w-full h-full bg-[#0052cc] rounded-full flex flex-col items-center justify-center text-white">
-                      <span className="material-symbols-outlined text-[18px] leading-none">
-                        local_cafe
-                      </span>
-                      <span className="text-[7px] font-extrabold tracking-tight uppercase leading-none mt-0.5">
-                        SHI BOSS
-                      </span>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Merchant Identification */}
-                <div className="w-full bg-[#f3f2ff] py-1.5 px-3 rounded-lg mt-2 flex items-center justify-center gap-1.5 border border-[#dce1ff]">
-                  <span className="material-symbols-outlined text-[#003d9b] text-[16px]">
-                    verified
-                  </span>
-                  <span className="text-[10px] text-[#003d9b] font-bold uppercase tracking-wider">
-                    KEDAI SUSU SEGAR SHI BOSS
-                  </span>
-                </div>
-              </div>
+            {activeOrder.paymentMethod === 'qris' && <div role="alert" className="rounded-xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-950">
+              QRIS merchant belum dikonfigurasi. Jangan melakukan transfer ke QR contoh. Silakan minta QRIS resmi kedai kepada kasir; verifikasi pembayaran tetap dilakukan manual.
+            </div>}
 
               {/* Payment status */}
               <div className="w-full flex items-center justify-center gap-2 bg-[#f3f2ff] px-4 py-2.5 rounded-full border border-[#dce1ff]">
-                <span className="inline-flex h-3 w-3 rounded-full bg-[#bb0016]"></span>
+                <span className={`inline-flex h-3 w-3 rounded-full ${activeOrder.paymentStatus === 'terverifikasi' || activeOrder.paymentStatus === 'tunai_lunas' ? 'bg-emerald-500' : activeOrder.paymentStatus === 'ditolak' ? 'bg-rose-500' : 'bg-[#bb0016]'}`}></span>
                 <span className="text-xs font-semibold text-[#071747]">
-                  Menunggu Pembayaran dari Aplikasi Bank / E-Wallet Anda...
+                  {activeOrder.paymentStatus === 'terverifikasi' || activeOrder.paymentStatus === 'tunai_lunas' ? 'Pembayaran telah dikonfirmasi kasir.' : activeOrder.paymentStatus === 'menunggu_tunai' ? 'Belum dibayar. Serahkan uang tunai kepada kasir.' : activeOrder.paymentStatus === 'ditolak' ? 'Bukti sebelumnya ditolak. Silakan unggah bukti yang benar.' : activeOrder.transferProofPath ? 'Bukti diterima; menunggu verifikasi manual kasir.' : 'Menunggu pembayaran dan verifikasi manual kasir.'}
                 </span>
               </div>
 
-              {/* Action Simulation Button */}
+              {/* Manual status refresh; payment is never auto-confirmed */}
               <div className="w-full pt-1">
                 <button
                   onClick={handleCheckStatus}
@@ -376,13 +214,11 @@ export const PaymentView: React.FC = () => {
                   >
                     sync
                   </span>
-                  <span>{isChecking ? 'Memeriksa ke Bank...' : 'Cek Status Pembayaran Otomatis'}</span>
+                  <span>{isChecking ? 'Memuat status pesanan...' : 'Perbarui Status Verifikasi'}</span>
                 </button>
               </div>
-            </div>
-
             {/* SEKSI BARU: UPLOAD BUKTI TRANSFER UNTUK DASHBOARD ADMIN */}
-            <div className="w-full bg-[#faf8ff] rounded-2xl p-5 border-2 border-dashed border-[#D0E2FF] flex flex-col gap-4">
+            {activeOrder.paymentMethod === 'qris' && <div className="w-full bg-[#faf8ff] rounded-2xl p-5 border-2 border-dashed border-[#D0E2FF] flex flex-col gap-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="flex flex-col">
                   <div className="flex items-center gap-2">
@@ -490,7 +326,7 @@ export const PaymentView: React.FC = () => {
                         </button>
                       ) : (
                         <button
-                          onClick={confirmPayment}
+                          onClick={() => { window.location.assign('/order'); }}
                           className="py-2 px-4 bg-emerald-600 hover:bg-emerald-700 text-white rounded-full font-bold text-xs shadow-xs transition-all flex items-center gap-1.5 cursor-pointer"
                         >
                           <span className="material-symbols-outlined text-[16px]">check_circle</span>
@@ -518,10 +354,10 @@ export const PaymentView: React.FC = () => {
                   </div>
                 </div>
               )}
-            </div>
+            </div>}
 
-            {/* Instructional Guide Box */}
-            <div className="bg-[#f3f2ff] p-4 rounded-xl flex flex-col gap-2 border border-[#dce1ff]">
+            {/* Manual payment instructions */}
+            {activeOrder.paymentMethod === 'qris' && <div className="bg-[#f3f2ff] p-4 rounded-xl flex flex-col gap-2 border border-[#dce1ff]">
               <div className="flex items-center gap-1.5 font-bold text-xs md:text-sm text-[#071747]">
                 <span className="material-symbols-outlined text-[#003d9b] text-[18px]">help</span>
                 <span>Panduan Bayar Menggunakan QRIS</span>
@@ -529,12 +365,12 @@ export const PaymentView: React.FC = () => {
               <ol className="flex flex-col gap-1 list-decimal list-inside text-xs text-[#434654] leading-relaxed">
                 <li>Buka aplikasi e-wallet atau mobile banking Anda (BCA, GoPay, OVO, ShopeePay, DANA, Livin', BRImo).</li>
                 <li>Pilih fitur <strong>"Scan QR"</strong> atau <strong>"Bayar"</strong> di aplikasi Anda.</li>
-                <li>Arahkan kamera smartphone ke kode QR dinamis di atas.</li>
-                <li>Pastikan nama merchant tertera <strong>KEDAI SUSU SEGAR SHI BOSS</strong>.</li>
+                <li>Minta kode QRIS resmi dari kasir, lalu pindai kode tersebut.</li>
+                <li>Pastikan nama merchant sesuai dengan informasi resmi yang diberikan kasir.</li>
                 <li>Konfirmasi total tagihan tepat <strong>{formatRupiah(totalAmount)}</strong> dan masukkan PIN Anda.</li>
                 <li>Setelah berhasil, ambil tangkapan layar (screenshot) dan <strong>unggah pada kolom bukti transfer di atas</strong>.</li>
               </ol>
-            </div>
+            </div>}
           </div>
 
           {/* Right Column: Order Summary */}
@@ -544,13 +380,13 @@ export const PaymentView: React.FC = () => {
               <div className="flex items-center justify-between pb-2 border-b border-[#ebedff]">
                 <span className="font-bold text-sm text-[#071747]">Rincian Meja #{tableNumber}</span>
                 <span className="px-2.5 py-0.5 rounded-full bg-[#f3f2ff] text-[#003d9b] text-[11px] font-bold">
-                  {activeOrder?.items.length || 3} Menu
+                  {activeOrder.items.length} Menu
                 </span>
               </div>
 
               {/* Product Item Micro-list */}
               <div className="flex flex-col gap-3 max-h-56 overflow-y-auto pr-1">
-                {(activeOrder?.items || []).map((ci) => (
+                {activeOrder.items.map((ci) => (
                   <div key={ci.cartItemId} className="flex items-center gap-2.5">
                     <div className="w-11 h-11 rounded-lg bg-[#f3f2ff] shrink-0 overflow-hidden">
                       <img
@@ -580,7 +416,7 @@ export const PaymentView: React.FC = () => {
               <div className="flex flex-col gap-1.5 text-xs">
                 <div className="flex justify-between text-[#434654]">
                   <span>Subtotal Item</span>
-                  <span>{formatRupiah(activeOrder?.subtotal || 34000)}</span>
+                  <span>{formatRupiah(activeOrder.subtotal)}</span>
                 </div>
                 <div className="flex justify-between text-[#434654]">
                   <span>Biaya Layanan Meja</span>

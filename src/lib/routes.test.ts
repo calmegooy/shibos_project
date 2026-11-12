@@ -13,8 +13,8 @@ test('customer views map to their canonical Astro URLs', () => {
 
 test('admin screens map to canonical URLs including login', () => {
   assert.deepEqual(
-    (['dashboard', 'menu', 'orders', 'qris', 'states', 'login'] satisfies AdminScreen[]).map(adminPathForScreen),
-    ['/admin', '/admin/menu', '/admin/orders', '/admin/qris', '/admin/states', '/admin/login']
+    (['dashboard', 'menu', 'orders', 'qris', 'login'] satisfies AdminScreen[]).map(adminPathForScreen),
+    ['/admin', '/admin/menu', '/admin/orders', '/admin/qris', '/admin/login']
   );
 });
 

@@ -52,7 +52,6 @@ test('Express serves Astro customer and admin route documents', async () => {
     ['/admin/menu', 'Manajemen Menu - Shiboss'],
     ['/admin/orders', 'Pesanan - Shiboss'],
     ['/admin/qris', 'Verifikasi QRIS - Shiboss'],
-    ['/admin/states', 'Showcase State - Shiboss'],
     ['/admin/login', 'Login Admin - Shiboss'],
   ]) {
     const response = await fetch(`${baseUrl}${route}`);

@@ -9,6 +9,7 @@ export type StatusBadgeType =
   | 'menunggu_verifikasi'
   | 'terverifikasi'
   | 'ditolak'
+  | 'menunggu_tunai'
   | 'tunai_lunas'
   | 'tersedia'
   | 'habis';
@@ -63,6 +64,10 @@ export const StatusBadge: React.FC<BadgeProps> = ({ status, size = 'md', classNa
     case 'tunai':
       label = 'Tunai Lunas';
       bgStyles = 'bg-sky-50 text-sky-800 border border-sky-200/80';
+      break;
+    case 'menunggu_tunai':
+      label = 'Menunggu Tunai';
+      bgStyles = 'bg-amber-50 text-amber-900 border border-amber-300 font-medium';
       break;
     case 'tersedia':
     case 'true':

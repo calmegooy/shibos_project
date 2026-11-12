@@ -11,10 +11,10 @@ import {
   ExternalLink,
   Plus,
   QrCode,
-  Layers,
 } from 'lucide-react';
 import { useAdmin } from '../../context/AdminContext';
 import { AdminScreen } from '../../types/admin';
+import { isPreviewMode } from '../../lib/previewMode';
 
 export const AdminHeader: React.FC = () => {
   const {
@@ -58,97 +58,15 @@ export const AdminHeader: React.FC = () => {
         return { page: 'Pesanan Dine-In', sub: 'Daftar transaksi meja aktif dan alur dapur' };
       case 'qris':
         return { page: 'Pembayaran QRIS', sub: 'Verifikasi manual mutasi perbankan non-tunai' };
-      case 'states':
-        return { page: 'Status Sistem & UI', sub: 'Inspeksi tampilan error, loading, dan data kosong' };
       default:
         return { page: 'Dashboard', sub: '' };
     }
   };
 
-  const { page, sub } = getBreadcrumbs();
+  const { page } = getBreadcrumbs();
 
   return (
     <header className="sticky top-0 z-30 bg-white/95 backdrop-blur-md border-b border-slate-200">
-      {/* Top Banner Screen Selector for fast testing */}
-      <div className="bg-[#faf8ff] border-b border-blue-100/60 px-4 py-1.5 flex items-center justify-between text-xs overflow-x-auto no-scrollbar">
-        <div className="flex items-center gap-2 shrink-0">
-          <span className="font-bold text-[#0052cc] uppercase text-[10px] tracking-wider px-2 py-0.5 rounded bg-blue-50 border border-blue-200">
-            Navigasi Cepat Prototipe
-          </span>
-          <span className="text-slate-400 hidden sm:inline">|</span>
-        </div>
-
-        <div className="flex items-center gap-1 shrink-0">
-          <button
-            onClick={() => setCurrentScreen('login')}
-            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-              currentScreen === 'login'
-                ? 'bg-[#0052cc] text-white shadow-xs'
-                : 'text-slate-600 hover:bg-slate-200/60'
-            }`}
-          >
-            1. Login
-          </button>
-          <button
-            onClick={() => setCurrentScreen('dashboard')}
-            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-              currentScreen === 'dashboard'
-                ? 'bg-[#0052cc] text-white shadow-xs'
-                : 'text-slate-600 hover:bg-slate-200/60'
-            }`}
-          >
-            2. Dashboard
-          </button>
-          <button
-            onClick={() => setCurrentScreen('menu')}
-            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-              currentScreen === 'menu'
-                ? 'bg-[#0052cc] text-white shadow-xs'
-                : 'text-slate-600 hover:bg-slate-200/60'
-            }`}
-          >
-            3. Menu (91)
-          </button>
-          <button
-            onClick={() => openAddModal()}
-            className="px-2.5 py-1 rounded-md text-xs font-medium text-slate-600 hover:bg-slate-200/60 transition-colors flex items-center gap-1"
-          >
-            <Plus className="w-3 h-3 text-[#0052cc]" />
-            <span>4. Tambah Menu</span>
-          </button>
-          <button
-            onClick={() => setCurrentScreen('orders')}
-            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-              currentScreen === 'orders'
-                ? 'bg-[#0052cc] text-white shadow-xs'
-                : 'text-slate-600 hover:bg-slate-200/60'
-            }`}
-          >
-            5. Pesanan
-          </button>
-          <button
-            onClick={() => setCurrentScreen('qris')}
-            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-              currentScreen === 'qris'
-                ? 'bg-[#0052cc] text-white shadow-xs'
-                : 'text-slate-600 hover:bg-slate-200/60'
-            }`}
-          >
-            6. QRIS
-          </button>
-          <button
-            onClick={() => setCurrentScreen('states')}
-            className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-              currentScreen === 'states'
-                ? 'bg-[#0052cc] text-white shadow-xs'
-                : 'text-slate-600 hover:bg-slate-200/60'
-            }`}
-          >
-            7. UI States
-          </button>
-        </div>
-      </div>
-
       {/* Main Header Row */}
       <div className="px-4 sm:px-6 py-3 flex items-center justify-between gap-4">
         {/* Left: Hamburger & Breadcrumb */}
@@ -256,11 +174,11 @@ export const AdminHeader: React.FC = () => {
               <div className="w-6 h-6 rounded-full bg-blue-100 text-[#0052cc] text-xs font-bold flex items-center justify-center shrink-0">
                 RP
               </div>
-              <div className="hidden md:block text-left">
-                <div className="text-xs font-bold text-[#071747] leading-tight">
-                  {currentUser.name}
-                </div>
-                <div className="text-[10px] text-slate-500 leading-tight">Kasir Siang</div>
+                <div className="hidden md:block text-left">
+                  <div className="text-xs font-bold text-[#071747] leading-tight">
+                    {currentUser.name}
+                  </div>
+                  <div className="text-[10px] text-slate-500 leading-tight">{isPreviewMode ? 'Preview Lokal' : 'Kasir Siang'}</div>
               </div>
               <ChevronDown className="w-3.5 h-3.5 text-slate-400" />
             </button>
@@ -270,8 +188,8 @@ export const AdminHeader: React.FC = () => {
                 <div className="px-3.5 py-2 border-b border-slate-100">
                   <p className="font-bold text-[#071747]">{currentUser.name}</p>
                   <p className="text-[11px] text-slate-500">{currentUser.email}</p>
-                  <span className="inline-block mt-1 text-[10px] px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-medium">
-                    Shift Aktif: 15:00 - 22:00
+                    <span className="inline-block mt-1 text-[10px] px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-medium">
+                      {isPreviewMode ? 'Data pratinjau lokal' : 'Shift Aktif: 15:00 - 22:00'}
                   </span>
                 </div>
                 <button
@@ -293,7 +211,7 @@ export const AdminHeader: React.FC = () => {
                   className="w-full text-left px-3.5 py-2 hover:bg-rose-50 text-rose-700 font-medium flex items-center gap-2"
                 >
                   <Lock className="w-4 h-4 text-rose-500" />
-                  <span>Kunci & Keluar Sesi</span>
+                  <span>{isPreviewMode ? 'Tutup Menu Profil' : 'Kunci & Keluar Sesi'}</span>
                 </button>
               </div>
             )}

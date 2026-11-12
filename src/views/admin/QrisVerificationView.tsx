@@ -30,8 +30,7 @@ export const QrisVerificationView: React.FC = () => {
     verifyQrisPayment,
     rejectQrisPayment,
     currentUser,
-    simulateEmptyQris,
-    setSimulateEmptyQris,
+    ordersLoadStatus,
   } = useAdmin();
 
   // Active Tab: Pending vs History
@@ -48,9 +47,8 @@ export const QrisVerificationView: React.FC = () => {
 
   // Pending vs Verified
   const pendingTransactions = useMemo(() => {
-    if (simulateEmptyQris) return [];
     return qrisTransactions.filter((t) => t.status === 'menunggu_verifikasi');
-  }, [qrisTransactions, simulateEmptyQris]);
+  }, [qrisTransactions]);
 
   const historyTransactions = useMemo(() => {
     return qrisTransactions.filter((t) => t.status !== 'menunggu_verifikasi');
@@ -93,27 +91,13 @@ export const QrisVerificationView: React.FC = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* State simulation button */}
-          <button
-            onClick={() => setSimulateEmptyQris(!simulateEmptyQris)}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
-              simulateEmptyQris
-                ? 'bg-amber-100 text-amber-900 border-amber-300'
-                : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-            }`}
-            title="Uji tampilan ketika semua pembayaran sudah diverifikasi"
-          >
-            {simulateEmptyQris ? 'Empty State Aktif' : 'Simulasi QRIS Kosong'}
-          </button>
-        </div>
       </div>
 
       {/* Manual Workflow Notice (Mandatory Requirement: No invented receipts!) */}
       <div className="p-3.5 bg-blue-50/70 border border-blue-200/80 rounded-xl text-xs text-blue-950 flex items-start gap-2.5">
         <Info className="w-4 h-4 text-[#0052cc] shrink-0 mt-0.5" />
         <div>
-          <strong>Standar Operasional Prosedur (SOP) Shiboss:</strong> Pelanggan dine-in tidak perlu mengunggah foto struk bukti bayar. Kasir memvalidasi langsung kesesuaian nominal dan nomor transaksi RRN pada mutasi rekening bank / aplikasi QRIS Merchant Shiboss.
+          <strong>Verifikasi manual QRIS:</strong> Bukti gambar yang dikirim pelanggan hanya referensi. Cocokkan nominal dan nomor transaksi pada mutasi bank / aplikasi QRIS Merchant sebelum menyetujui pembayaran.
         </div>
       </div>
 
@@ -154,7 +138,7 @@ export const QrisVerificationView: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         {/* Left Column (5 Cols on LG): List of Transactions */}
         <div className="lg:col-span-5 space-y-3">
-          {activeList.length === 0 ? (
+          {ordersLoadStatus === 'loading' ? <div role="status" className="rounded-xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500">Memuat transaksi QRIS...</div> : ordersLoadStatus === 'error' ? <div role="alert" className="rounded-xl border border-rose-200 bg-rose-50 p-10 text-center text-sm text-rose-700">Transaksi QRIS gagal dimuat dari Supabase.</div> : activeList.length === 0 ? (
             <div className="bg-white rounded-xl border border-slate-200 p-10 text-center space-y-3">
               <div className="w-12 h-12 rounded-full bg-emerald-50 text-emerald-600 flex items-center justify-center mx-auto">
                 <Check className="w-6 h-6" />
@@ -169,14 +153,6 @@ export const QrisVerificationView: React.FC = () => {
                   ? 'Tidak ada transaksi QRIS pending yang menunggu verifikasi saat ini. Dapur siap meracik pesanan.'
                   : 'Riwayat verifikasi kasir hari ini akan muncul di sini.'}
               </p>
-              {simulateEmptyQris && (
-                <button
-                  onClick={() => setSimulateEmptyQris(false)}
-                  className="px-3.5 py-1.5 text-xs font-bold text-[#0052cc] bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors"
-                >
-                  Kembalikan Data Pending
-                </button>
-              )}
             </div>
           ) : (
             activeList.map((trx) => {

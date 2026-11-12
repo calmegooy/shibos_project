@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import { useOrder } from '../context/OrderContext';
-import { MENU_ITEMS, formatRupiah } from '../data/menuData';
+import { formatRupiah } from '../data/menuData';
 import { MenuCategory, MenuItem } from '../types';
 
 export const MenuView: React.FC = () => {
@@ -12,6 +12,8 @@ export const MenuView: React.FC = () => {
     setCustomizeModalItem,
     searchQuery,
     setSearchQuery,
+    menuItems,
+    menuLoadStatus,
   } = useOrder();
 
   const [activeCategory, setActiveCategory] = useState<MenuCategory>('all');
@@ -19,7 +21,7 @@ export const MenuView: React.FC = () => {
 
   // Filter & sort
   const filteredItems = useMemo(() => {
-    let result = [...MENU_ITEMS];
+    let result = [...menuItems];
 
     // Search query filter
     if (searchQuery.trim().length > 0) {
@@ -45,7 +47,7 @@ export const MenuView: React.FC = () => {
     }
 
     return result;
-  }, [searchQuery, activeCategory, sortBy]);
+  }, [menuItems, searchQuery, activeCategory, sortBy]);
 
   // Group items by category if 'all' is active
   const minumanItems = useMemo(() => filteredItems.filter((i) => i.category === 'minuman'), [filteredItems]);
@@ -229,7 +231,7 @@ export const MenuView: React.FC = () => {
                   activeCategory === 'all' ? 'bg-white/20 text-white' : 'bg-[#ebedff] text-[#003d9b]'
                 }`}
               >
-                {MENU_ITEMS.length}
+                {menuItems.length}
               </span>
             </button>
 
@@ -249,7 +251,7 @@ export const MenuView: React.FC = () => {
                     : 'bg-[#ebedff] text-[#003d9b]'
                 }`}
               >
-                {MENU_ITEMS.filter((i) => i.category === 'minuman').length}
+                {menuItems.filter((i) => i.category === 'minuman').length}
               </span>
             </button>
 
@@ -269,7 +271,7 @@ export const MenuView: React.FC = () => {
                     : 'bg-[#ebedff] text-[#003d9b]'
                 }`}
               >
-                {MENU_ITEMS.filter((i) => i.category === 'snack').length}
+                {menuItems.filter((i) => i.category === 'snack').length}
               </span>
             </button>
 
@@ -289,17 +291,25 @@ export const MenuView: React.FC = () => {
                     : 'bg-[#ebedff] text-[#003d9b]'
                 }`}
               >
-                {MENU_ITEMS.filter((i) => i.category === 'makanan').length}
+                {menuItems.filter((i) => i.category === 'makanan').length}
               </span>
             </button>
           </div>
         </div>
       </section>
 
+      {menuLoadStatus !== 'ready' && (
+        <div role={menuLoadStatus === 'loading' ? 'status' : 'alert'} className="mx-auto mt-6 max-w-7xl rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-700">
+          {menuLoadStatus === 'loading' && 'Memuat menu terbaru...'}
+          {menuLoadStatus === 'unavailable' && 'Katalog belum tersedia: koneksi Supabase belum dikonfigurasi.'}
+          {menuLoadStatus === 'error' && 'Menu gagal dimuat dari Supabase. Coba muat ulang halaman.'}
+        </div>
+      )}
+
       {/* Main Catalog Content */}
       <div className="max-w-7xl mx-auto px-4 md:px-6 py-8 flex flex-col gap-10 w-full mb-28">
         {/* If searching or category is active, display filtered or sectioned view */}
-        {activeCategory === 'all' && !searchQuery ? (
+        {menuLoadStatus === 'ready' && activeCategory === 'all' && !searchQuery ? (
           <>
             {/* Section 1: MINUMAN SUSU SEGAR */}
             <section className="flex flex-col gap-4">
@@ -374,7 +384,7 @@ export const MenuView: React.FC = () => {
               </div>
             </section>
           </>
-        ) : (
+        ) : menuLoadStatus === 'ready' ? (
           <div className="flex flex-col gap-4">
             <div className="flex items-center justify-between pb-1 border-b border-[#ebedff]">
               <span className="text-sm font-bold text-[#071747]">
@@ -407,7 +417,7 @@ export const MenuView: React.FC = () => {
               </div>
             )}
           </div>
-        )}
+        ) : null}
       </div>
     </div>
   );

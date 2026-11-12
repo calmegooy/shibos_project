@@ -1,7 +1,10 @@
-import React, { createContext, useContext, useEffect, useState, useMemo } from 'react';
+import React, { createContext, useContext, useEffect, useState, useMemo, useRef } from 'react';
 import { MenuItem, CartItem, ItemModifier, ActiveOrder } from '../types';
-import { INITIAL_CART_ITEMS } from '../data/menuData';
 import { readSessionState, writeSessionState } from '../lib/sessionState';
+import { loadCustomerMenu } from '../lib/menuRepository';
+import { supabase } from '../lib/supabase';
+import { getStaticCustomerMenu } from '../lib/staticMenu';
+import { createDineInOrder, fetchCustomerOrder, uploadCustomerProof } from '../lib/orderRepository';
 
 export type ViewType = 'beranda' | 'menu' | 'keranjang' | 'checkout' | 'pembayaran' | 'pesanan';
 
@@ -28,9 +31,9 @@ interface OrderContextType {
   paymentMethod: 'qris' | 'cash';
   setPaymentMethod: (method: 'qris' | 'cash') => void;
   activeOrder: ActiveOrder | null;
-  placeOrder: (method: 'qris' | 'cash') => void;
-  confirmPayment: () => void;
-  uploadTransferProof: (proofUrl: string) => void;
+  placeOrder: (method: 'qris' | 'cash') => Promise<boolean>;
+  refreshActiveOrder: () => Promise<ActiveOrder | null>;
+  uploadTransferProof: (file: File) => Promise<boolean>;
   toastMessage: string | null;
   showToast: (msg: string) => void;
   isTableModalOpen: boolean;
@@ -41,6 +44,8 @@ interface OrderContextType {
   setCustomizeModalItem: (item: MenuItem | null) => void;
   searchQuery: string;
   setSearchQuery: (query: string) => void;
+  menuItems: MenuItem[];
+  menuLoadStatus: 'loading' | 'ready' | 'error' | 'unavailable';
 }
 
 const OrderContext = createContext<OrderContextType | undefined>(undefined);
@@ -59,15 +64,37 @@ export const OrderProvider: React.FC<OrderProviderProps> = ({
   const [currentView, setCurrentView] = useState<ViewType>(initialView);
   const [tableNumber, setTableNumber] = useState('08');
   const [customerName, setCustomerName] = useState('');
-  const [kitchenNotes, setKitchenNotes] = useState('Es sedang, gula normal untuk seluruh gelas susu.');
-  const [cartItems, setCartItems] = useState<CartItem[]>(INITIAL_CART_ITEMS);
+  const [kitchenNotes, setKitchenNotes] = useState('');
+  const [cartItems, setCartItems] = useState<CartItem[]>([]);
   const [paymentMethod, setPaymentMethod] = useState<'qris' | 'cash'>('qris');
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [isTableModalOpen, setIsTableModalOpen] = useState(false);
   const [isWaiterModalOpen, setIsWaiterModalOpen] = useState(false);
   const [customizeModalItem, setCustomizeModalItem] = useState<MenuItem | null>(null);
   const [searchQuery, setSearchQuery] = useState(initialSearchQuery);
+  const [menuItems, setMenuItems] = useState<MenuItem[]>([]);
+  const [menuLoadStatus, setMenuLoadStatus] = useState<'loading' | 'ready' | 'error' | 'unavailable'>('loading');
   const [sessionRestored, setSessionRestored] = useState(false);
+  const orderRequestRef = useRef<{ requestId: string; accessToken: string } | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    if (!supabase) {
+      setMenuItems(getStaticCustomerMenu());
+      setMenuLoadStatus('ready');
+      return () => { active = false; };
+    }
+    void loadCustomerMenu(supabase).then((items) => {
+      if (!active) return;
+      setMenuItems(items);
+      setMenuLoadStatus('ready');
+    }).catch(() => {
+      if (!active) return;
+      setMenuItems([]);
+      setMenuLoadStatus('error');
+    });
+    return () => { active = false; };
+  }, []);
 
   useEffect(() => {
     const snapshot = typeof window === 'undefined' ? null : readSessionState(window.sessionStorage)?.customer;
@@ -79,29 +106,19 @@ export const OrderProvider: React.FC<OrderProviderProps> = ({
       if (snapshot.paymentMethod === 'qris' || snapshot.paymentMethod === 'cash') {
         setPaymentMethod(snapshot.paymentMethod);
       }
-      if (snapshot.activeOrder === null || (typeof snapshot.activeOrder === 'object' && snapshot.activeOrder !== null)) {
-        setActiveOrder(snapshot.activeOrder as ActiveOrder | null);
-      }
+      const restoredOrder = snapshot.activeOrder as Record<string, unknown> | null;
+      setActiveOrder(
+        typeof restoredOrder === 'object' && restoredOrder !== null &&
+          typeof restoredOrder.databaseId === 'string' && typeof restoredOrder.accessToken === 'string'
+          ? restoredOrder as unknown as ActiveOrder
+          : null
+      );
     }
     setSessionRestored(true);
   }, []);
 
   // Active placed order
-  const [activeOrder, setActiveOrder] = useState<ActiveOrder | null>({
-    orderId: '#SB-2025-0891',
-    tableNumber: '08',
-    customerName: '',
-    items: INITIAL_CART_ITEMS,
-    subtotal: 34000,
-    tax: 0,
-    discount: 0,
-    total: 34000,
-    paymentMethod: 'qris',
-    isPaid: true,
-    status: 'diracik',
-    createdAt: 'Hari Ini, 14:15 WIB',
-    kitchenNotes: 'Es sedang, gula normal untuk seluruh gelas susu.',
-  });
+  const [activeOrder, setActiveOrder] = useState<ActiveOrder | null>(null);
 
   useEffect(() => {
     if (!sessionRestored || typeof window === 'undefined') return;
@@ -203,48 +220,77 @@ export const OrderProvider: React.FC<OrderProviderProps> = ({
     showToast('Keranjang meja telah dikosongkan');
   };
 
-  const placeOrder = (method: 'qris' | 'cash') => {
-    const orderNum = `#SB-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
-    const newOrder: ActiveOrder = {
-      orderId: orderNum,
-      tableNumber,
-      customerName,
-      items: [...cartItems],
-      subtotal: cartTotal,
-      tax: taxAmount,
-      discount: voucherDiscount,
-      total: finalTotal,
-      paymentMethod: method,
-      isPaid: false,
-      status: 'diterima',
-      createdAt: `Hari Ini, ${new Date().toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })} WIB`,
-      kitchenNotes,
+  const makeSecret = () => Array.from(crypto.getRandomValues(new Uint8Array(32)), (byte) => byte.toString(16).padStart(2, '0')).join('');
+
+  const placeOrder = async (method: 'qris' | 'cash'): Promise<boolean> => {
+    if (!supabase) {
+      showToast('Pemesanan belum tersedia karena Supabase belum dikonfigurasi.');
+      return false;
+    }
+    if (!cartItems.length) {
+      showToast('Keranjang masih kosong.');
+      return false;
+    }
+    if (!orderRequestRef.current) {
+      orderRequestRef.current = { requestId: crypto.randomUUID(), accessToken: makeSecret() };
+    }
+    const credentials = orderRequestRef.current;
+    try {
+      const order = await createDineInOrder(supabase, {
+        tableNumber, customerName, kitchenNotes, paymentMethod: method, cartItems,
+        requestId: credentials.requestId, accessToken: credentials.accessToken,
+      });
+      orderRequestRef.current = null;
+      setActiveOrder(order);
+      setCartItems([]);
+      setCurrentView('pembayaran');
+      showToast(`Pesanan ${order.orderId} berhasil disimpan.`);
+      return true;
+    } catch {
+      showToast('Pesanan belum tersimpan. Keranjang tetap aman; silakan coba lagi.');
+      return false;
+    }
+  };
+
+  const refreshActiveOrder = async (): Promise<ActiveOrder | null> => {
+    if (!supabase || !activeOrder) return null;
+    try {
+      const refreshed = await fetchCustomerOrder(supabase, activeOrder);
+      setActiveOrder(refreshed);
+      return refreshed;
+    } catch {
+      showToast('Status pesanan belum dapat diperbarui. Coba lagi sebentar.');
+      return null;
+    }
+  };
+
+  const uploadTransferProof = async (file: File): Promise<boolean> => {
+    if (!supabase || !activeOrder) return false;
+    try {
+      const path = await uploadCustomerProof(supabase, activeOrder, file);
+      setActiveOrder((current) => current ? { ...current, transferProofPath: path, paymentStatus: 'menunggu_verifikasi' } : current);
+      showToast('Bukti pembayaran tersimpan dan menunggu verifikasi kasir.');
+      await refreshActiveOrder();
+      return true;
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : 'Bukti pembayaran gagal dikirim.');
+      return false;
+    }
+  };
+
+  useEffect(() => {
+    if (!activeOrder || !['pembayaran', 'pesanan'].includes(currentView) || !supabase) return;
+    const client = supabase;
+    let active = true;
+    const refresh = () => {
+      void fetchCustomerOrder(client, activeOrder).then((order) => {
+        if (active) setActiveOrder(order);
+      }).catch(() => undefined);
     };
-    setActiveOrder(newOrder);
-    setCurrentView('pembayaran');
-  };
-
-  const confirmPayment = () => {
-    if (activeOrder) {
-      setActiveOrder({
-        ...activeOrder,
-        isPaid: true,
-        status: 'diracik',
-      });
-    }
-    showToast('Pembayaran berhasil! Barista sedang meracik pesanan Anda.');
-    setCurrentView('pesanan');
-  };
-
-  const uploadTransferProof = (proofUrl: string) => {
-    if (activeOrder) {
-      setActiveOrder({
-        ...activeOrder,
-        transferProofImage: proofUrl,
-      });
-    }
-    showToast('Bukti transfer berhasil diunggah! Kasir Shiboss sedang memverifikasi.');
-  };
+    refresh();
+    const timer = window.setInterval(refresh, 10000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [activeOrder?.databaseId, currentView]);
 
   return (
     <OrderContext.Provider
@@ -272,7 +318,7 @@ export const OrderProvider: React.FC<OrderProviderProps> = ({
         setPaymentMethod,
         activeOrder,
         placeOrder,
-        confirmPayment,
+        refreshActiveOrder,
         uploadTransferProof,
         toastMessage,
         showToast,
@@ -284,6 +330,8 @@ export const OrderProvider: React.FC<OrderProviderProps> = ({
         setCustomizeModalItem,
         searchQuery,
         setSearchQuery,
+        menuItems,
+        menuLoadStatus,
       }}
     >
       {children}

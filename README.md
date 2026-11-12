@@ -14,7 +14,7 @@ npm install
 npm run dev
 ```
 
-The Astro dev server listens on port `3000`. Set `DISABLE_HMR=true` in environments where hot module replacement and file watching should be disabled.
+The Astro dev server listens on port `3000`. This folder is a static local preview: the customer catalog and 91-item admin menu use bundled data, admin pages open without login, and the app never connects to Supabase. Orders, QRIS transactions, and menu edits are not persisted. Do not deploy this preview copy. Set `DISABLE_HMR=true` in environments where hot module replacement and file watching should be disabled.
 
 ## Build and serve
 
@@ -27,9 +27,11 @@ Astro writes the static site to `dist/`. The existing Express server serves that
 
 Customer routes: `/`, `/menu`, `/cart`, `/checkout`, `/payment`, `/order`.
 
-Admin routes: `/admin`, `/admin/menu`, `/admin/orders`, `/admin/qris`, `/admin/states`, `/admin/login`.
+Admin routes: `/admin`, `/admin/menu`, `/admin/orders`, `/admin/qris`, `/admin/login`.
 
-In-progress demo data is kept in `sessionStorage` for the current browser tab so it survives Astro page navigation and refresh. Closing the tab clears that session. This is not backend or cross-device persistence.
+Customer cart and in-progress order UI state use `sessionStorage`; this is not backend or cross-device persistence. Admin access is verified with Supabase Auth and the `admin_users` allowlist; session storage does not grant authorization. The static customer catalog is a preview data source, not live inventory.
+
+See [Supabase setup](docs/supabase-setup.md) for environment configuration, migration/seed application, and first-admin provisioning.
 
 For Astro's local static preview instead of Express:
 
