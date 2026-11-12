@@ -27,9 +27,11 @@ Astro writes the static site to `dist/`. The existing Express server serves that
 
 Customer routes: `/`, `/menu`, `/cart`, `/checkout`, `/payment`, `/order`.
 
-Admin routes: `/admin`, `/admin/menu`, `/admin/orders`, `/admin/qris`, `/admin/states`, `/admin/login`.
+Admin routes: `/admin`, `/admin/menu`, `/admin/orders`, `/admin/qris`, `/admin/login`.
 
-In-progress demo data is kept in `sessionStorage` for the current browser tab so it survives Astro page navigation and refresh. Closing the tab clears that session. This is not backend or cross-device persistence.
+Customer cart and in-progress order UI state use `sessionStorage`; this is not backend or cross-device persistence. Admin access is verified with Supabase Auth and the `admin_users` allowlist; session storage does not grant authorization. Admin menu/order records remain explicitly labeled as prototype data until the repository integration is complete.
+
+See [Supabase setup](docs/supabase-setup.md) for environment configuration, migration/seed application, and first-admin provisioning.
 
 For Astro's local static preview instead of Express:
 

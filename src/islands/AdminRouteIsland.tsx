@@ -5,11 +5,22 @@ import { adminPathForScreen } from '../lib/routes';
 import { AdminApp } from '../views/admin/AdminApp';
 
 const AdminRouteContent: React.FC<{ initialScreen: AdminScreen }> = ({ initialScreen }) => {
-  const { currentScreen } = useAdmin();
+  const { currentScreen, authStatus } = useAdmin();
 
   useEffect(() => {
-    if (currentScreen !== initialScreen) window.location.assign(adminPathForScreen(currentScreen));
-  }, [currentScreen, initialScreen]);
+    if (authStatus === 'loading') return;
+    if (authStatus === 'unauthenticated' && initialScreen !== 'login') {
+      window.location.replace(adminPathForScreen('login'));
+      return;
+    }
+    if (authStatus === 'authorized' && initialScreen === 'login') {
+      window.location.replace(adminPathForScreen('dashboard'));
+      return;
+    }
+    if (authStatus === 'authorized' && currentScreen !== initialScreen) {
+      window.location.assign(adminPathForScreen(currentScreen));
+    }
+  }, [authStatus, currentScreen, initialScreen]);
 
   return <AdminApp />;
 };

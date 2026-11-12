@@ -5,20 +5,11 @@ import { formatRupiah } from '../data/menuData';
 export const OrderStatusView: React.FC = () => {
   const { setCurrentView, tableNumber, activeOrder } = useOrder();
 
-  const order = activeOrder || {
-    orderId: '#SB-2025-0891',
-    tableNumber,
-    items: [],
-    subtotal: 34000,
-    tax: 3400,
-    discount: 3400,
-    total: 34000,
-    paymentMethod: 'qris' as const,
-    isPaid: true,
-    status: 'diracik' as const,
-    createdAt: 'Hari Ini, 14:15 WIB',
-    kitchenNotes: 'Es sedang, gula normal untuk seluruh gelas susu.',
-  };
+  if (!activeOrder) {
+    return <section className="mx-auto my-12 max-w-xl rounded-2xl border border-slate-200 bg-white p-8 text-center"><h1 className="text-xl font-bold text-slate-900">Pesanan tidak ditemukan</h1><p className="mt-2 text-sm text-slate-600">Buat pesanan terlebih dahulu untuk melihat statusnya.</p><a href="/menu" className="mt-5 inline-flex rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white">Lihat menu</a></section>;
+  }
+
+  const order = activeOrder;
 
   return (
     <div className="flex flex-col w-full">
@@ -26,9 +17,9 @@ export const OrderStatusView: React.FC = () => {
         <div className="w-full max-w-3xl mx-auto px-4 md:px-6 pt-4 sm:pt-6 flex flex-col items-center">
           {/* Breadcrumb / Table Indicator Banner */}
           <div className="inline-flex items-center gap-2 bg-[#f3f2ff] px-4 py-1.5 rounded-full shadow-xs mb-4 border border-[#dce1ff]">
-            <span className="w-2.5 h-2.5 rounded-full bg-emerald-500"></span>
+              <span className={`w-2.5 h-2.5 rounded-full ${order.status === 'selesai' ? 'bg-emerald-500' : order.status === 'dibatalkan' ? 'bg-rose-500' : 'bg-amber-500'}`}></span>
             <span className="text-xs text-[#003d9b] font-bold uppercase tracking-wider">
-              Pesanan Dine-In Aktif • Meja #{tableNumber}
+              Pesanan {order.status} • Meja #{tableNumber}
             </span>
           </div>
 
@@ -63,15 +54,15 @@ export const OrderStatusView: React.FC = () => {
 
             {/* Typography Headlines */}
             <span className="text-[10px] md:text-xs uppercase tracking-widest text-[#bb0016] font-extrabold mb-1">
-              Konfirmasi Dine-in Berhasil
+              {order.status === 'dibatalkan' ? 'Pesanan Dibatalkan' : order.paymentStatus === 'terverifikasi' || order.paymentStatus === 'tunai_lunas' ? 'Pembayaran Terkonfirmasi' : 'Pesanan Tersimpan'}
             </span>
             <h1 className="text-2xl md:text-3xl font-extrabold text-[#071747] text-center max-w-lg mb-2 tracking-tight">
-              Pesanan Berhasil Diterima!
+              {order.status === 'dibatalkan' ? 'Pesanan Dibatalkan' : 'Pesanan Anda'}
             </h1>
             <p className="text-xs md:text-sm text-[#434654] max-w-lg mx-auto mb-6 leading-relaxed">
               Terima kasih telah memesan di{' '}
               <span className="font-bold text-[#003d9b]">Kedai Susu Segar Shi Boss</span>. Minuman
-              susu sapi segar murni dan hidangan lezatmu sedang segera diracik dengan cinta oleh barista kami.
+              {order.status === 'dibatalkan' ? `Alasan: ${order.cancellationReason ?? 'Hubungi kasir untuk informasi lebih lanjut.'}` : order.paymentStatus === 'menunggu_verifikasi' ? 'Pesanan tersimpan. Pembayaran QRIS akan diproses setelah diverifikasi manual oleh kasir.' : 'Status pesanan diperbarui langsung oleh tim kedai.'}
             </p>
 
             {/* Estimated Serving Time Pill Card */}
@@ -115,7 +106,7 @@ export const OrderStatusView: React.FC = () => {
                   <div>
                     <p className="text-xs font-bold text-[#071747]">Diterima &amp; Terbayar</p>
                     <p className="text-[11px] text-[#434654]">
-                      {order.paymentMethod === 'cash' ? 'Tervalidasi Kasir' : 'Lunas via QRIS Meja'}
+                    {order.paymentStatus === 'terverifikasi' || order.paymentStatus === 'tunai_lunas' ? 'Pembayaran terkonfirmasi' : order.paymentStatus === 'menunggu_tunai' ? 'Tunai belum dibayar' : 'Menunggu verifikasi pembayaran'}
                     </p>
                   </div>
                 </div>
@@ -185,7 +176,7 @@ export const OrderStatusView: React.FC = () => {
                   <span className="text-[10px] text-[#737685] block">Metode Pembayaran</span>
                   <span className="text-xs text-emerald-700 font-bold flex items-center gap-1 mt-0.5">
                     <span className="material-symbols-outlined text-[16px]">qr_code_2</span>
-                    {order.paymentMethod === 'cash' ? 'Tunai di Kasir' : 'QRIS Dinamis (Lunas)'}
+                    {order.paymentMethod === 'cash' ? 'Tunai di kasir' : 'QRIS (verifikasi manual)'}
                   </span>
                 </div>
               </div>
@@ -245,7 +236,7 @@ export const OrderStatusView: React.FC = () => {
                     Total Pembayaran
                   </span>
                   <span className="text-[10px] text-emerald-600 font-semibold">
-                    Sesuai harga menu • Berhasil Lunas
+                    {order.isPaid ? 'Pembayaran terverifikasi' : 'Menunggu pembayaran/verifikasi'}
                   </span>
                 </div>
                 <div className="text-right">

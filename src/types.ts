@@ -31,6 +31,8 @@ export interface CartItem {
 
 export interface ActiveOrder {
   orderId: string;
+  databaseId?: string;
+  accessToken?: string;
   tableNumber: string;
   customerName?: string;
   items: CartItem[];
@@ -40,8 +42,11 @@ export interface ActiveOrder {
   total: number;
   paymentMethod: 'qris' | 'cash';
   isPaid: boolean;
-  status: 'diterima' | 'diracik' | 'diantar' | 'selesai';
+  status: 'diterima' | 'menunggu' | 'dikonfirmasi' | 'diracik' | 'diantar' | 'selesai' | 'dibatalkan';
+  paymentStatus?: 'menunggu_verifikasi' | 'terverifikasi' | 'ditolak' | 'menunggu_tunai' | 'tunai_lunas';
   createdAt: string;
   kitchenNotes?: string;
   transferProofImage?: string;
+  transferProofPath?: string;
+  cancellationReason?: string;
 }

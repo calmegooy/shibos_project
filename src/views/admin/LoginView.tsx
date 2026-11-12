@@ -4,10 +4,10 @@ import { useAdmin } from '../../context/AdminContext';
 import { MASCOT_LOGO_URL } from '../../data/menuData';
 
 export const LoginView: React.FC = () => {
-  const { login, isLoginLoading, loginError, setCurrentScreen } = useAdmin();
+  const { login, isLoginLoading, loginError } = useAdmin();
 
-  const [email, setEmail] = useState('rian.kasir@shiboss.id');
-  const [password, setPassword] = useState('shiboss2026');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
 
@@ -34,17 +34,6 @@ export const LoginView: React.FC = () => {
 
     setFieldErrors({});
     await login(email, password);
-  };
-
-  const handleFillDemo = (type: 'kasir' | 'manajer') => {
-    if (type === 'kasir') {
-      setEmail('rian.kasir@shiboss.id');
-      setPassword('shiboss2026');
-    } else {
-      setEmail('dita.manager@shiboss.id');
-      setPassword('shiboss2026');
-    }
-    setFieldErrors({});
   };
 
   return (
@@ -198,40 +187,13 @@ export const LoginView: React.FC = () => {
             </div>
           </form>
 
-          {/* Quick Demo Fillers */}
-          <div className="mt-6 pt-5 border-t border-slate-100">
-            <span className="text-[11px] text-slate-400 font-semibold block mb-2 uppercase tracking-wider">
-              Kredensial Prototipe Cepat:
-            </span>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => handleFillDemo('kasir')}
-                className="px-2.5 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg text-left transition-colors"
-              >
-                <span className="font-bold block text-[#071747]">Kasir Shift</span>
-                <span className="text-[10px] text-slate-500 font-mono">rian.kasir</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleFillDemo('manajer')}
-                className="px-2.5 py-1.5 text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg text-left transition-colors"
-              >
-                <span className="font-bold block text-[#071747]">Manajer Outlet</span>
-                <span className="text-[10px] text-slate-500 font-mono">dita.manager</span>
-              </button>
-            </div>
-          </div>
         </div>
 
         {/* Back to Customer Web */}
         <div className="text-center mt-6">
-          <button
-            onClick={() => setCurrentScreen('dashboard')}
-            className="text-xs text-slate-500 hover:text-[#0052cc] font-medium transition-colors"
-          >
-            ← Kembali ke Tampilan Dashboard Langsung
-          </button>
+          <a href="/" className="text-xs text-slate-500 hover:text-[#0052cc] font-medium transition-colors">
+            ← Kembali ke Web Pesanan
+          </a>
         </div>
       </div>
     </div>

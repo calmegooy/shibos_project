@@ -6,11 +6,6 @@ const { title = 'Pemesanan - Kedai Susu Segar Shi Boss', description = 'Pesan mi
 
 <BaseLayout title={title} description={description}>
   <div class="min-h-screen bg-cream-canvas text-heading-charcoal flex flex-col font-sans">
-    <div class="fixed inset-x-0 top-0 z-[60] h-[38px] bg-[#003d9b] text-white px-4 py-2 text-xs flex items-center justify-between gap-3">
-      <span class="font-semibold">Mode Pratinjau: Web Pemesanan Pelanggan (Meja Dine-in)</span>
-      <a href="/admin" class="shrink-0 rounded-full bg-white px-3 py-1 font-bold text-[#003d9b] hover:bg-blue-50">Buka Dashboard Admin Shiboss</a>
-    </div>
-    <div class="h-[38px]" aria-hidden="true"></div>
     <CustomerNavigation />
     <main class="w-full pt-[124px] lg:pt-20 flex-1 min-h-[calc(100vh-80px)]">
       <slot />

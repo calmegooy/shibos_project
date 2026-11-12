@@ -7,7 +7,6 @@ import {
   Trash2,
   Check,
   X,
-  AlertCircle,
   Coffee,
   ChevronLeft,
   ChevronRight,
@@ -26,14 +25,11 @@ import { AdminModal } from '../../components/admin/AdminModal';
 export const MenuManagementView: React.FC = () => {
   const {
     menuItems,
+    menuLoadStatus,
     openAddModal,
     openEditModal,
     deleteMenuItem,
     toggleItemAvailability,
-    simulateLoading,
-    setSimulateLoading,
-    simulateError,
-    setSimulateError,
   } = useAdmin();
 
   // Search & Filters
@@ -117,31 +113,6 @@ export const MenuManagementView: React.FC = () => {
         </div>
 
         <div className="flex items-center gap-2.5">
-          {/* State Simulation Toggle (Screen 7 requirements) */}
-          <button
-            onClick={() => setSimulateLoading(!simulateLoading)}
-            className={`px-3 py-2 text-xs font-semibold rounded-lg border transition-colors ${
-              simulateLoading
-                ? 'bg-amber-100 text-amber-900 border-amber-300'
-                : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-            }`}
-            title="Uji tampilan loading skeleton"
-          >
-            {simulateLoading ? 'Skeleton Aktif' : 'Simulasi Loading'}
-          </button>
-
-          <button
-            onClick={() => setSimulateError(!simulateError)}
-            className={`px-3 py-2 text-xs font-semibold rounded-lg border transition-colors ${
-              simulateError
-                ? 'bg-rose-100 text-rose-900 border-rose-300'
-                : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-            }`}
-            title="Uji tampilan gagal koneksi server"
-          >
-            {simulateError ? 'Error Aktif' : 'Simulasi Error'}
-          </button>
-
           <button
             onClick={openAddModal}
             className="px-4 py-2 text-xs font-bold text-white bg-[#0052cc] hover:bg-[#0040a2] rounded-lg transition-colors shadow-2xs flex items-center gap-1.5"
@@ -152,25 +123,14 @@ export const MenuManagementView: React.FC = () => {
         </div>
       </div>
 
-      {/* Error State Banner if simulateError is active */}
-      {simulateError ? (
-        <div className="p-8 bg-white rounded-xl border border-rose-200 text-center space-y-3">
-          <div className="w-12 h-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
-            <AlertCircle className="w-6 h-6" />
-          </div>
-          <h3 className="text-base font-bold text-[#071747]">Gagal Memuat Data Katalog Menu</h3>
-          <p className="text-xs text-slate-500 max-w-md mx-auto">
-            Terjadi kendala saat menyinkronkan data dengan database Supabase Shiboss. Periksa koneksi internet atau muat ulang.
-          </p>
-          <button
-            onClick={() => setSimulateError(false)}
-            className="px-4 py-2 bg-[#0052cc] text-white text-xs font-bold rounded-lg hover:bg-[#0040a2] transition-colors"
-          >
-            Coba Muat Ulang Data
-          </button>
+      {menuLoadStatus === 'loading' && <p role="status" className="rounded-lg border border-blue-200 bg-blue-50 p-4 text-sm text-blue-900">Memuat katalog menu dari Supabase...</p>}
+      {(menuLoadStatus === 'error' || menuLoadStatus === 'unavailable') && (
+        <div role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+          {menuLoadStatus === 'unavailable' ? 'Supabase belum dikonfigurasi. Katalog admin belum dimuat.' : 'Katalog gagal dimuat dari Supabase. Data contoh tidak ditampilkan.'}
+          <button type="button" onClick={() => window.location.reload()} className="ml-3 font-bold underline">Coba lagi</button>
         </div>
-      ) : (
-        <>
+      )}
+
           {/* Filter & Search Bar */}
           <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs space-y-3">
             <div className="flex flex-col md:flex-row gap-3">
@@ -284,25 +244,7 @@ export const MenuManagementView: React.FC = () => {
 
           {/* Table Container */}
           <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
-            {simulateLoading ? (
-              // Loading Skeleton State
-              <div className="p-6 space-y-4">
-                <div className="flex items-center justify-between text-xs text-slate-400">
-                  <span>Memuat data katalog menu...</span>
-                </div>
-                {[1, 2, 3, 4, 5, 6].map((n) => (
-                  <div key={n} className="flex items-center gap-4 animate-pulse">
-                    <div className="w-12 h-12 bg-slate-200 rounded-lg shrink-0" />
-                    <div className="flex-1 space-y-2">
-                      <div className="h-4 bg-slate-200 rounded w-1/3" />
-                      <div className="h-3 bg-slate-100 rounded w-1/2" />
-                    </div>
-                    <div className="w-20 h-4 bg-slate-200 rounded" />
-                    <div className="w-20 h-6 bg-slate-100 rounded" />
-                  </div>
-                ))}
-              </div>
-            ) : paginatedItems.length === 0 ? (
+            {paginatedItems.length === 0 ? (
               // Empty State (Search / Filter)
               <div className="py-14 px-4 text-center space-y-3">
                 <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
@@ -330,6 +272,7 @@ export const MenuManagementView: React.FC = () => {
                       <th className="py-3.5 px-4 min-w-[280px]">Produk & Keterangan</th>
                       <th className="py-3.5 px-4">Kategori</th>
                       <th className="py-3.5 px-4 text-right">Harga Resmi</th>
+                      <th className="py-3.5 px-4 text-center">Katalog Pelanggan</th>
                       <th className="py-3.5 px-4 text-center">Ketersediaan</th>
                       <th className="py-3.5 px-4 text-center w-28">Aksi</th>
                     </tr>
@@ -407,6 +350,12 @@ export const MenuManagementView: React.FC = () => {
                             {formatRupiah(item.price)}
                           </td>
 
+                          <td className="py-3.5 px-4 text-center whitespace-nowrap">
+                            <span className={`rounded-md border px-2 py-1 text-[10px] font-semibold ${item.isCustomerVisible ? 'border-blue-200 bg-blue-50 text-blue-800' : 'border-slate-200 bg-slate-50 text-slate-500'}`}>
+                              {item.isCustomerVisible ? 'Ditampilkan' : 'Admin saja'}
+                            </span>
+                          </td>
+
                           {/* Availability Toggle Switch */}
                           <td className="py-3.5 px-4 text-center whitespace-nowrap">
                             <button
@@ -455,7 +404,7 @@ export const MenuManagementView: React.FC = () => {
             )}
 
             {/* Pagination Controls */}
-            {!simulateLoading && paginatedItems.length > 0 && (
+            {paginatedItems.length > 0 && (
               <div className="p-4 bg-[#faf8ff] border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
                 <div className="flex items-center gap-2">
                   <span>
@@ -516,9 +465,6 @@ export const MenuManagementView: React.FC = () => {
               </div>
             )}
           </div>
-        </>
-      )}
-
       {/* Delete Confirmation Modal */}
       <AdminModal
         isOpen={!!itemToDelete}

@@ -6,7 +6,6 @@ import {
   QrCode,
   LogOut,
   X,
-  Layers,
   Sparkles,
   Store,
   ChevronRight,
@@ -59,13 +58,6 @@ export const AdminSidebar: React.FC = () => {
       icon: QrCode,
       badge: pendingQrisCount > 0 ? `${pendingQrisCount}` : null,
       badgeColor: 'bg-red-100 text-red-700 font-bold',
-    },
-    {
-      id: 'states',
-      label: 'Status Sistem & UI',
-      icon: Layers,
-      badge: 'Screen 7',
-      badgeColor: 'bg-blue-100 text-[#0052cc]',
     },
   ];
 

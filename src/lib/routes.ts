@@ -21,7 +21,6 @@ const adminPaths: Record<AdminScreen, string> = {
   add_menu: '/admin/menu',
   orders: '/admin/orders',
   qris: '/admin/qris',
-  states: '/admin/states',
 };
 
 const routesByPath = new Map<string, ResolvedRoute>([

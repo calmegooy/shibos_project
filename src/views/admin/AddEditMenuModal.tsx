@@ -1,13 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import {
-  UploadCloud,
-  X,
-  Check,
-  AlertCircle,
-  Image as ImageIcon,
-  RotateCw,
-  Trash2,
-} from 'lucide-react';
 import { useAdmin } from '../../context/AdminContext';
 import { SHIBOSS_CATEGORIES } from '../../data/shiboss91Menu';
 import { ShibossCategory, AdminMenuItem } from '../../types/admin';
@@ -24,12 +15,9 @@ export const AddEditMenuModal: React.FC = () => {
   const [price, setPrice] = useState<number>(12000);
   const [description, setDescription] = useState('');
   const [isAvailable, setIsAvailable] = useState<boolean>(true);
+  const [isCustomerVisible, setIsCustomerVisible] = useState<boolean>(false);
   const [imageUrl, setImageUrl] = useState<string>('');
 
-  // Upload simulation & validation
-  const [uploadProgress, setUploadProgress] = useState<number>(0);
-  const [isUploading, setIsUploading] = useState<boolean>(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState<boolean>(false);
   const [validationErrors, setValidationErrors] = useState<{ name?: string; price?: string }>({});
 
@@ -40,6 +28,7 @@ export const AddEditMenuModal: React.FC = () => {
       setPrice(editingItem.price);
       setDescription(editingItem.description);
       setIsAvailable(editingItem.isAvailable);
+      setIsCustomerVisible(editingItem.isCustomerVisible ?? false);
       setImageUrl(editingItem.image || '');
     } else {
       setName('');
@@ -47,44 +36,14 @@ export const AddEditMenuModal: React.FC = () => {
       setPrice(12000);
       setDescription('');
       setIsAvailable(true);
+      setIsCustomerVisible(false);
       setImageUrl('');
     }
     setValidationErrors({});
-    setUploadError(null);
-    setUploadProgress(0);
   }, [editingItem, isAddEditModalOpen]);
-
-  // Simulate file drag/selection
-  const handleSimulateUpload = (shouldFail: boolean = false) => {
-    setUploadError(null);
-    setIsUploading(true);
-    setUploadProgress(15);
-
-    const interval = setInterval(() => {
-      setUploadProgress((prev) => {
-        if (prev >= 90) {
-          clearInterval(interval);
-          setIsUploading(false);
-          if (shouldFail) {
-            setUploadError('Ukuran file melebihi batas 2MB atau format tidak valid (.tiff).');
-            return 0;
-          } else {
-            // Success simulated image
-            setImageUrl(
-              'https://lh3.googleusercontent.com/aida-public/AB6AXuDBgq-5HBNrgLoWQLg4duGUA4HefRaNRColEZFPNQaeyA3_iAMF_2P_XWkr7Qa1DvEX9WxAuxuegES2xzBZLwu6PCjpcFs0I0jEBNg6X1s5ArlgJn7zOAP5jvav3B3fYr4WvNB2DyzBGd9IAQuvmv7ZVOX3PvNs53JBMOtltnJDU3rqxL9dMje2PnQUGzKytr5dxcg3CsQu7qnhIgXLja0O-FLAx_cu4ytyDZk2Yt_RYYEwgVyTTINnZw'
-            );
-            return 100;
-          }
-        }
-        return prev + 25;
-      });
-    }, 200);
-  };
 
   const handleRemoveImage = () => {
     setImageUrl('');
-    setUploadProgress(0);
-    setUploadError(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -111,6 +70,7 @@ export const AddEditMenuModal: React.FC = () => {
         price,
         description: description.trim(),
         isAvailable,
+        isCustomerVisible,
         image: imageUrl,
       });
     } finally {
@@ -231,6 +191,11 @@ export const AddEditMenuModal: React.FC = () => {
           </div>
         </div>
 
+        <label className="flex items-start gap-2 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-700">
+          <input type="checkbox" checked={isCustomerVisible} onChange={(event) => setIsCustomerVisible(event.target.checked)} className="mt-0.5 accent-[#0052cc]" />
+          <span><strong>Tampilkan di katalog pelanggan</strong><br />Jika tidak dicentang, menu hanya terlihat di panel admin.</span>
+        </label>
+
         {/* Description */}
         <div>
           <label className="block text-xs font-bold text-slate-700 mb-1" htmlFor="menu-description">
@@ -246,109 +211,13 @@ export const AddEditMenuModal: React.FC = () => {
           />
         </div>
 
-        {/* Image Upload Zone (Requirement 6) */}
-        <div>
-          <label className="block text-xs font-bold text-slate-700 mb-1">Foto Produk</label>
-
-          {imageUrl ? (
-            /* Uploaded Preview State */
-            <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <img
-                  src={imageUrl}
-                  alt="Preview"
-                  className="w-14 h-14 rounded-lg object-cover border border-slate-200"
-                  referrerPolicy="no-referrer"
-                />
-                <div>
-                  <span className="text-xs font-bold text-slate-800 block">
-                    Foto Produk Aktif
-                  </span>
-                  <span className="text-[11px] text-emerald-700 flex items-center gap-1 mt-0.5">
-                    <Check className="w-3.5 h-3.5" />
-                    <span>Gambar siap disimpan</span>
-                  </span>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleSimulateUpload(false)}
-                  className="px-2.5 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-200 rounded-lg transition-colors flex items-center gap-1"
-                >
-                  <RotateCw className="w-3.5 h-3.5" />
-                  <span>Ganti</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={handleRemoveImage}
-                  className="px-2.5 py-1.5 text-xs font-medium text-rose-700 hover:bg-rose-100 rounded-lg transition-colors flex items-center gap-1"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Hapus</span>
-                </button>
-              </div>
-            </div>
-          ) : (
-            /* Empty / Upload Drop Zone */
-            <div className="border-2 border-dashed border-slate-200 hover:border-blue-400 rounded-xl p-5 text-center bg-[#faf8ff] transition-colors">
-              <div className="w-10 h-10 rounded-full bg-blue-50 text-[#0052cc] flex items-center justify-center mx-auto mb-2">
-                <UploadCloud className="w-5 h-5" />
-              </div>
-              <p className="text-xs font-bold text-slate-700">
-                Tarik & letakkan foto menu di sini, atau pilih berkas
-              </p>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                Mendukung PNG, JPG, atau WebP hingga batas 2MB. Jika kosong, sistem menggunakan ikon placeholder netral.
-              </p>
-
-              {/* Progress bar if simulating upload */}
-              {isUploading && (
-                <div className="mt-3 max-w-xs mx-auto">
-                  <div className="flex justify-between text-[10px] text-slate-500 mb-1">
-                    <span>Mengunggah berkas...</span>
-                    <span>{uploadProgress}%</span>
-                  </div>
-                  <div className="w-full h-1.5 bg-slate-200 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-[#0052cc] transition-all duration-200"
-                      style={{ width: `${uploadProgress}%` }}
-                    />
-                  </div>
-                </div>
-              )}
-
-              {/* Action Buttons to test upload success / failure */}
-              <div className="mt-3 flex items-center justify-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleSimulateUpload(false)}
-                  disabled={isUploading}
-                  className="px-3 py-1.5 bg-[#0052cc] hover:bg-[#0040a2] text-white text-xs font-bold rounded-lg transition-colors cursor-pointer"
-                >
-                  Pilih File Foto
-                </button>
-                <button
-                  type="button"
-                  onClick={() => handleSimulateUpload(true)}
-                  disabled={isUploading}
-                  className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 text-[11px] font-medium rounded-lg transition-colors"
-                  title="Simulasi skenario berkas ditolak / format gagal"
-                >
-                  Uji Gagal Upload
-                </button>
-              </div>
-            </div>
-          )}
-
-          {uploadError && (
-            <div className="mt-2 p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
-              <span>{uploadError}</span>
-            </div>
-          )}
-        </div>
+      {/* Product image URL and real preview */}
+      <div>
+        <label className="block text-xs font-bold text-slate-700 mb-1" htmlFor="menu-image-url">URL Foto Produk</label>
+        <input id="menu-image-url" type="url" value={imageUrl} onChange={(event) => setImageUrl(event.target.value)} placeholder="https://..." className="w-full rounded-lg border border-slate-300 px-3.5 py-2 text-xs focus:border-[#0052cc] focus:outline-none" />
+        <p className="mt-1 text-[11px] text-slate-500">Masukkan URL gambar publik. Pratinjau ditampilkan sebelum disimpan.</p>
+        {imageUrl && <div className="mt-3 flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3"><img src={imageUrl} alt={`Pratinjau ${name || 'foto menu'}`} className="h-14 w-14 rounded-lg border border-slate-200 object-cover" referrerPolicy="no-referrer" onError={(event) => { event.currentTarget.style.visibility = 'hidden'; }} /><button type="button" onClick={handleRemoveImage} className="text-xs font-semibold text-rose-700">Hapus foto</button></div>}
+      </div>
 
         {/* Save & Cancel Controls */}
         <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
@@ -362,7 +231,7 @@ export const AddEditMenuModal: React.FC = () => {
           </button>
           <button
             type="submit"
-            disabled={isSaving || isUploading}
+            disabled={isSaving}
             className="px-5 py-2 text-xs font-bold text-white bg-[#0052cc] hover:bg-[#0040a2] active:bg-[#003380] rounded-lg transition-all shadow-2xs flex items-center gap-2 disabled:opacity-60 cursor-pointer"
           >
             {isSaving ? (

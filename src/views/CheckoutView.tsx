@@ -22,17 +22,15 @@ export const CheckoutView: React.FC = () => {
 
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleConfirmOrder = () => {
+  const handleConfirmOrder = async () => {
     if (!tableNumber.trim()) {
       showToast('Mohon masukkan nomor meja yang valid sesuai stiker meja Anda.');
       return;
     }
 
     setIsSubmitting(true);
-    setTimeout(() => {
-      setIsSubmitting(false);
-      placeOrder(paymentMethod);
-    }, 600);
+    await placeOrder(paymentMethod);
+    setIsSubmitting(false);
   };
 
   return (

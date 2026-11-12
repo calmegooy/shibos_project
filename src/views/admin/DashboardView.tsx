@@ -9,7 +9,6 @@ import {
   UtensilsCrossed,
   Receipt,
   Activity,
-  AlertCircle,
   Eye,
   Calendar,
 } from 'lucide-react';
@@ -26,6 +25,7 @@ export const DashboardView: React.FC = () => {
     setCurrentScreen,
     setSelectedOrder,
     openAddModal,
+    ordersLoadStatus,
   } = useAdmin();
 
   // Metrics calculated from state
@@ -47,7 +47,7 @@ export const DashboardView: React.FC = () => {
         <div>
           <div className="flex items-center gap-2 text-xs font-semibold text-[#0052cc] mb-1">
             <span className="w-2 h-2 rounded-full bg-emerald-500" />
-            <span>Shift Siang Berjalan</span>
+            <span>Operasional</span>
             <span className="text-slate-300">·</span>
             <span className="text-slate-500">{currentUser.outlet}</span>
           </div>
@@ -78,18 +78,8 @@ export const DashboardView: React.FC = () => {
         </div>
       </div>
 
-      {/* Prototype Notice */}
-      <div className="px-4 py-2.5 rounded-lg bg-blue-50/70 border border-blue-200/60 text-xs text-blue-900 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <AlertCircle className="w-4 h-4 text-[#0052cc] shrink-0" />
-          <span>
-            <strong>Data Prototipe Visual:</strong> Angka dan catatan di bawah ini merupakan data simulasi operasional cafe untuk demonstrasi antarmuka.
-          </span>
-        </div>
-        <span className="text-[11px] text-blue-700 font-mono hidden md:inline">
-          Minggu, 25 Okt 2026
-        </span>
-      </div>
+      {ordersLoadStatus === 'loading' && <p role="status" className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">Memuat pesanan dan pembayaran dari Supabase...</p>}
+      {ordersLoadStatus === 'error' && <p role="alert" className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900">Data operasional gagal dimuat. Angka tidak ditampilkan sebagai data live.</p>}
 
       {/* Summary KPI Cards Grid (The 4 requested status categories) */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">

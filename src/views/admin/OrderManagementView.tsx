@@ -27,8 +27,8 @@ export const OrderManagementView: React.FC = () => {
     selectedOrder,
     setSelectedOrder,
     updateOrderStatus,
-    simulateEmptyOrders,
-    setSimulateEmptyOrders,
+    markCashPaymentPaid,
+    ordersLoadStatus,
   } = useAdmin();
 
   // Search & Filters
@@ -47,8 +47,6 @@ export const OrderManagementView: React.FC = () => {
 
   // Filtering
   const filteredOrders = useMemo(() => {
-    if (simulateEmptyOrders) return [];
-
     return orders.filter((order) => {
       const matchSearch =
         order.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -59,7 +57,7 @@ export const OrderManagementView: React.FC = () => {
 
       return matchSearch && matchStatus;
     });
-  }, [orders, searchQuery, statusFilter, simulateEmptyOrders]);
+  }, [orders, searchQuery, statusFilter]);
 
   const handleOpenStatusConfirm = (orderId: string, targetStatus: OrderStatus) => {
     setPendingStatusChange({
@@ -105,20 +103,6 @@ export const OrderManagementView: React.FC = () => {
           </p>
         </div>
 
-        {/* State Toggle */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setSimulateEmptyOrders(!simulateEmptyOrders)}
-            className={`px-3 py-1.5 text-xs font-semibold rounded-lg border transition-colors ${
-              simulateEmptyOrders
-                ? 'bg-amber-100 text-amber-900 border-amber-300'
-                : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-            }`}
-            title="Uji tampilan ketika belum ada pesanan sama sekali"
-          >
-            {simulateEmptyOrders ? 'Empty State Aktif' : 'Simulasi Pesanan Kosong'}
-          </button>
-        </div>
       </div>
 
       {/* Filter and Search Bar */}
@@ -221,25 +205,15 @@ export const OrderManagementView: React.FC = () => {
 
       {/* Orders Table Container */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-2xs overflow-hidden">
-        {filteredOrders.length === 0 ? (
+        {ordersLoadStatus === 'loading' ? <p role="status" className="p-10 text-center text-sm text-slate-500">Memuat pesanan...</p> : ordersLoadStatus === 'error' ? <p role="alert" className="p-10 text-center text-sm text-rose-700">Data pesanan gagal dimuat dari Supabase.</p> : filteredOrders.length === 0 ? (
           <div className="py-16 px-4 text-center space-y-3">
             <div className="w-12 h-12 rounded-full bg-slate-100 text-slate-400 flex items-center justify-center mx-auto">
               <Receipt className="w-6 h-6" />
             </div>
             <h3 className="text-base font-bold text-[#071747]">Belum Ada Pesanan Masuk</h3>
             <p className="text-xs text-slate-500 max-w-sm mx-auto">
-              {simulateEmptyOrders
-                ? 'Mode simulasi pesanan kosong sedang aktif.'
-                : 'Tidak ada data pesanan yang sesuai dengan filter atau kata kunci pencarian.'}
+              Tidak ada data pesanan yang sesuai dengan filter atau kata kunci pencarian.
             </p>
-            {simulateEmptyOrders && (
-              <button
-                onClick={() => setSimulateEmptyOrders(false)}
-                className="px-4 py-2 text-xs font-bold text-[#0052cc] bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-lg transition-colors"
-              >
-                Kembalikan Daftar Pesanan Aktif
-              </button>
-            )}
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -348,6 +322,17 @@ export const OrderManagementView: React.FC = () => {
                 </div>
               </div>
             </div>
+
+            {selectedOrder.paymentMethod === 'cash' && selectedOrder.paymentStatus === 'menunggu_tunai' && selectedOrder.databaseId && (
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-3">
+                <p className="text-xs text-amber-950">Konfirmasikan hanya setelah kasir menerima uang tunai.</p>
+                <button type="button" onClick={() => {
+                  if (window.confirm(`Konfirmasi penerimaan tunai ${formatRupiah(selectedOrder.total)} untuk ${selectedOrder.id}?`)) {
+                    markCashPaymentPaid(selectedOrder.databaseId!);
+                  }
+                }} className="shrink-0 rounded-lg bg-amber-700 px-3 py-2 text-xs font-bold text-white hover:bg-amber-800">Tandai Tunai Diterima</button>
+              </div>
+            )}
 
             {/* Customer Notes */}
             {selectedOrder.customerNotes && (

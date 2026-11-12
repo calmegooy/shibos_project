@@ -9,18 +9,32 @@ const DashboardView = lazy(() => import('./DashboardView').then((module) => ({ d
 const MenuManagementView = lazy(() => import('./MenuManagementView').then((module) => ({ default: module.MenuManagementView })));
 const OrderManagementView = lazy(() => import('./OrderManagementView').then((module) => ({ default: module.OrderManagementView })));
 const QrisVerificationView = lazy(() => import('./QrisVerificationView').then((module) => ({ default: module.QrisVerificationView })));
-const StateShowcaseView = lazy(() => import('./StateShowcaseView').then((module) => ({ default: module.StateShowcaseView })));
 
 export const AdminApp: React.FC = () => {
-  const { currentScreen, isAuthenticated, adminToast, hideToast } = useAdmin();
+  const { currentScreen, isAuthenticated, authStatus, adminToast, hideToast } = useAdmin();
   const activeScreen = currentScreen === 'dashboard' ? <DashboardView />
     : currentScreen === 'menu' ? <MenuManagementView />
     : currentScreen === 'orders' ? <OrderManagementView />
     : currentScreen === 'qris' ? <QrisVerificationView />
-    : currentScreen === 'states' ? <StateShowcaseView />
     : null;
 
-  // If on login screen or not authenticated, render LoginView
+  if (currentScreen !== 'login' && authStatus === 'loading') {
+    return <div className="min-h-screen grid place-items-center text-sm text-slate-500">Memeriksa sesi admin...</div>;
+  }
+  if (currentScreen !== 'login' && authStatus === 'unauthenticated') return null;
+
+  if (authStatus === 'denied' && currentScreen !== 'login') {
+    return (
+      <main className="min-h-screen grid place-items-center bg-slate-50 p-6 text-center">
+        <div className="max-w-md rounded-2xl border border-rose-200 bg-white p-8 shadow-sm">
+          <h1 className="text-xl font-bold text-slate-900">Akses admin ditolak</h1>
+          <p className="mt-2 text-sm text-slate-600">Akun ini tidak terdaftar sebagai admin Shiboss.</p>
+          <a className="mt-5 inline-flex rounded-lg bg-blue-700 px-4 py-2 text-sm font-semibold text-white" href="/admin/login">Kembali ke login</a>
+        </div>
+      </main>
+    );
+  }
+
   if (currentScreen === 'login' || !isAuthenticated) {
     return (
       <div className="font-sans antialiased text-[#071747]">

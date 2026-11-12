@@ -1,11 +1,14 @@
 import React from 'react';
 import { useOrder } from '../context/OrderContext';
-import { MENU_ITEMS, formatRupiah } from '../data/menuData';
+import { formatRupiah } from '../data/menuData';
 
 export const HomeView: React.FC = () => {
-  const { setCurrentView, tableNumber, addToCart, setCustomizeModalItem } = useOrder();
+  const { setCurrentView, tableNumber, addToCart, setCustomizeModalItem, menuItems, menuLoadStatus } = useOrder();
 
-  const popularItems = MENU_ITEMS.filter((item) => item.isPopular);
+  const popularItems = menuItems.filter((item) => item.isPopular);
+  const featuredItems = ['susu-cokelat', 'susu-original', 'susu-strawberry']
+    .map((id) => menuItems.find((item) => item.id === id))
+    .filter((item) => item !== undefined);
 
   return (
     <div className="flex flex-col w-full">
@@ -70,75 +73,17 @@ export const HomeView: React.FC = () => {
           {/* Right Column: Visual Showcase Trio */}
           <div className="flex-1 w-full relative">
             <div className="relative bg-white/80 backdrop-blur-md p-4 md:p-6 rounded-3xl shadow-xl flex flex-col sm:flex-row gap-4 items-center justify-center border border-[#dce1ff]">
-              {/* Item 1: Belgian Choc */}
-              <div
-                onClick={() => {
-                  const itm = MENU_ITEMS.find((i) => i.id === 'susu-cokelat');
-                  if (itm) setCustomizeModalItem(itm);
-                }}
-                className="group relative flex-1 flex flex-col items-center bg-[#f3f2ff] p-3 rounded-2xl transition-all duration-300 hover:-translate-y-1.5 hover:shadow-lg w-full cursor-pointer"
-              >
-                <div className="relative w-28 h-36 mb-2 overflow-hidden rounded-xl">
-                  <img
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                    alt="Susu Belgian Chocolate"
-                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuDpNmY_nhejms54OROOWIK_58i6C5hlq1bEiytE55NPBd06JCWS3u5KuQIhaCdFplpWCEuATyJvNUHHEYoiCa0gWSTyZFDH33N7AYqCJqvGx3IcIM-qr0bW-kWiYwK5IdNsJnvviPzKW24_mrkapa4aVwcfQyn-NBoJJFqvgLNEn4DdpJncB0l_vifXjhFQ4bh15hYWTKXdFQg9f35-ytzkOcbtavmu54t0bnfzKms5BxeBT4OcO35zOg"
-                  />
-                  <span className="absolute top-1 right-1 bg-[#003d9b] text-white text-[10px] px-2 py-0.5 rounded-full font-bold">
-                    Choco
-                  </span>
-                </div>
-                <span className="font-bold text-sm text-[#071747] text-center line-clamp-1">
-                  Susu Belgian
-                </span>
-                <span className="text-xs font-bold text-[#003d9b] mt-0.5">Rp12.000</span>
-              </div>
-
-              {/* Item 2: Hero Center Original */}
-              <div
-                onClick={() => {
-                  const itm = MENU_ITEMS.find((i) => i.id === 'susu-original');
-                  if (itm) setCustomizeModalItem(itm);
-                }}
-                className="group relative flex-1 flex flex-col items-center bg-[#dae2ff]/50 p-3 rounded-2xl sm:-mt-6 shadow-md transition-all duration-300 hover:-translate-y-2 hover:shadow-xl w-full cursor-pointer border border-[#b2c5ff]"
-              >
-                <span className="absolute -top-3 bg-[#bb0016] text-white text-[10px] uppercase tracking-wider px-3 py-0.5 rounded-full font-bold shadow-xs">
-                  Juara Utama
-                </span>
-                <div className="relative w-32 h-44 mb-2 overflow-hidden rounded-xl mt-1">
-                  <img
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                    alt="Susu Original Segar"
-                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuB_q8KB5XUXMKlUGWRXqGH0CCmFtCC7NByhMV3phBYc88V8H6HthToRmENVIxKAUzljzmigDF44OEznp-iGPq2g7Z3oPlpnsy2t7e6lkUPNVBVap_jH6RugTh8ytvnHKgEaQzoLzVUiN3exc1ja-8QOcO4dQ1tR5XBNqimkYwyoCItT8PdTwli_oYuYcqMqXGkL7UJUF11KfvcCZBrUmXptvpkm8e63Gpr7oxlY_YtNK1a8yyHWDBs9pw"
-                  />
-                </div>
-                <span className="font-bold text-base text-[#003d9b] text-center">Susu Original</span>
-                <span className="text-sm font-extrabold text-[#bb0016] mt-0.5">Rp10.000</span>
-              </div>
-
-              {/* Item 3: Fresh Strawberry */}
-              <div
-                onClick={() => {
-                  const itm = MENU_ITEMS.find((i) => i.id === 'susu-strawberry');
-                  if (itm) setCustomizeModalItem(itm);
-                }}
-                className="group relative flex-1 flex flex-col items-center bg-[#f3f2ff] p-3 rounded-2xl transition-all duration-300 hover:-translate-y-1.5 hover:shadow-lg w-full cursor-pointer"
-              >
-                <div className="relative w-28 h-36 mb-2 overflow-hidden rounded-xl">
-                  <img
-                    className="w-full h-full object-cover group-hover:scale-105 transition-transform"
-                    alt="Susu Strawberry Korea"
-                    src="https://lh3.googleusercontent.com/aida-public/AB6AXuCq1DtfRuyy0TyV6l1bTECloXPShVMNFp7KnAIxwBF0899nafQ4ieRoFkyLjPFBk5pOZ_xpLqKFGmYy6AcU9dNFbeyGMfV6uvVZIhPdAfF557I1NY4sbI5viMAwPUSSxbQ7UlknkSNc9lJq0oJUIjZzTef_4zgIQfTsEJPU2O_TAmjG_nuYNhU-d7MBsF7ug5Ey55BIvjz610K0Hd3t_dbJo6MdK0LellA54uYkVdJeuTCFbhx2jiQBfQ"
-                  />
-                  <span className="absolute top-1 right-1 bg-[#bb0016] text-white text-[10px] px-2 py-0.5 rounded-full font-bold">
-                    Berry
-                  </span>
-                </div>
-                <span className="font-bold text-sm text-[#071747] text-center line-clamp-1">
-                  Susu Strawberry
-                </span>
-                <span className="text-xs font-bold text-[#003d9b] mt-0.5">Rp12.000</span>
-              </div>
+              {featuredItems.map((item) => (
+                <button key={item.id} type="button" onClick={() => setCustomizeModalItem(item)} className="group relative flex-1 flex flex-col items-center bg-[#f3f2ff] p-3 rounded-2xl transition-all duration-300 hover:-translate-y-1.5 hover:shadow-lg w-full cursor-pointer">
+                  <div className="relative w-28 h-36 mb-2 overflow-hidden rounded-xl bg-slate-100">
+                    <img className="h-full w-full object-cover group-hover:scale-105 transition-transform" alt={item.name} src={item.image} />
+                  </div>
+                  <span className="font-bold text-sm text-[#071747] text-center line-clamp-1">{item.name}</span>
+                  <span className="text-xs font-bold text-[#003d9b] mt-0.5">{formatRupiah(item.price)}</span>
+                </button>
+              ))}
+              {menuLoadStatus === 'loading' && <p role="status" className="text-sm text-slate-500">Memuat menu...</p>}
+              {(menuLoadStatus === 'error' || menuLoadStatus === 'unavailable') && <p role="alert" className="text-sm text-slate-600">Menu belum tersedia. Silakan coba lagi nanti.</p>}
             </div>
           </div>
         </div>

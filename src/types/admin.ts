@@ -18,6 +18,7 @@ export type PaymentStatus =
   | 'menunggu_verifikasi'
   | 'terverifikasi'
   | 'ditolak'
+  | 'menunggu_tunai'
   | 'tunai_lunas';
 
 export interface AdminUser {
@@ -40,6 +41,7 @@ export interface AdminMenuItem {
   description: string;
   image: string;
   isAvailable: boolean;
+  isCustomerVisible?: boolean;
   isPopular?: boolean;
   isBestseller?: boolean;
   badge?: string;
@@ -66,6 +68,7 @@ export interface AdminOrderItem {
 
 export interface AdminOrder {
   id: string; // e.g. #SHB-1094
+  databaseId?: string;
   tableNumber: string; // e.g. Meja 04
   customerName: string;
   items: AdminOrderItem[];
@@ -81,10 +84,12 @@ export interface AdminOrder {
   verifiedBy?: string;
   verifiedAt?: string;
   transferProofImage?: string;
+  transferProofPath?: string;
 }
 
 export interface QrisTransaction {
   id: string; // e.g. QRIS-20261025-081
+  databaseOrderId?: string;
   orderId: string; // e.g. #SHB-1094
   customerName: string;
   tableNumber: string;
@@ -98,6 +103,7 @@ export interface QrisTransaction {
   verifiedAt?: string;
   rejectionReason?: string;
   transferProofImage?: string;
+  transferProofPath?: string;
 }
 
 export interface ActivityLog {
@@ -115,5 +121,4 @@ export type AdminScreen =
   | 'menu'
   | 'add_menu'
   | 'orders'
-  | 'qris'
-  | 'states';
+  | 'qris';
